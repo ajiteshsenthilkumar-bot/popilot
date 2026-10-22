@@ -29,6 +29,8 @@ describe("Test 1: parse updates the matching PO", () => {
 
     expect(row.status).toBe("applied");
     expect(row.new_eta).toBe(expected);
+    expect(row.old_eta).toBe(addDays(todayIST(), 2)); // seed: label was due in 2 days
+    expect((await getUpdates())[0].status).toBe("applied"); // log row was finalised, not left pending
     expect(row.original_text).toBe("bhaiya labels Monday tak nahi aayenge");
     expect(row.confidence).toBe(0.93);
     const po = (await getPOs()).find((p) => p.po_id === "PO-101")!;

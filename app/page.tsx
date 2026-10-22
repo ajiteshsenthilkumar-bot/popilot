@@ -8,7 +8,6 @@ import type { PO, RiskResult, UpdateRow } from "@/lib/types";
 
 interface Board {
   today: string;
-  mode: "sheet" | "memory";
   pos: PO[];
   risks: RiskResult[];
   updates: UpdateRow[];
@@ -40,11 +39,6 @@ export default function Home() {
       </div>
 
       {err && <div className="banner bad">{err}</div>}
-      {board?.mode === "memory" && (
-        <div className="banner warn">
-          Demo mode: not connected to Google Sheets yet, so data lives in memory and resets when the server restarts. See README to connect your sheet.
-        </div>
-      )}
 
       {board && (
         <div className="grid">

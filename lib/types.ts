@@ -39,7 +39,8 @@ export interface Proposal {
   reason: string;
 }
 
-export type UpdateStatus = "applied" | "needs_review" | "confirmed";
+// "pending" = logged but the PO write hasn't finished (or failed midway): visible, never silent.
+export type UpdateStatus = "applied" | "needs_review" | "confirmed" | "pending";
 
 export interface UpdateRow {
   id: string;
@@ -50,6 +51,7 @@ export interface UpdateRow {
   po_id: string;
   item: string;
   eta_expression: string;
+  old_eta: string; // the PO's ETA before this update ("" if unknown)
   new_eta: string;
   confidence: number;
   status: UpdateStatus;

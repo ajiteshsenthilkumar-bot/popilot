@@ -1,4 +1,6 @@
 // The flow for one message: Claude proposes -> plain-code gate decides -> sheet changes (or not).
+// Order matters: the log row is written FIRST, then the PO, then the log row is marked done.
+// So a failure midway leaves a visible "pending" row, never a silent PO change.
 import { extractProposal } from "./claude";
 import { isValidIso, todayIST } from "./dates";
 import { evaluate } from "./gate";
@@ -25,6 +27,7 @@ export async function processMessage(input: {
     po_id: "",
     item: "",
     eta_expression: "",
+    old_eta: "",
     new_eta: "",
     confidence: 0,
     status: "needs_review",
@@ -47,19 +50,33 @@ export async function processMessage(input: {
   row.eta_expression = describeEta(proposal.eta_expression);
   row.confidence = proposal.confidence;
 
-  const verdict = evaluate(proposal, pos, today);
-  row.new_eta = verdict.ok ? verdict.newEta : verdict.newEta ?? "";
+  // show what the ETA is today, if the AI pointed at a real PO + item
+  const guessPo = pos.find((p) => p.po_id === proposal!.po_id);
+  if (guessPo && proposal.item) row.old_eta = guessPo.inputs[proposal.item].eta;
 
-  if (verdict.ok) {
+  const verdict = evaluate(proposal, pos, today);
+  row.new_eta = verdict.newEta ?? "";
+
+  if (!verdict.ok) {
+    row.status = "needs_review";
+    row.reason = `Needs your review: ${verdict.reason}`;
+    await appendUpdate(row);
+    return row;
+  }
+
+  // 1) log first as pending, 2) change the PO, 3) mark the log row applied
+  row.status = "pending";
+  row.reason = "Updating the PO…";
+  await appendUpdate(row);
+  try {
     const changed = await setEta(verdict.po.po_id, verdict.item, verdict.newEta);
     row.status = changed ? "applied" : "needs_review";
     row.reason = changed ? proposal.reason : "Needs your review: PO row not found in the sheet";
-  } else {
+  } catch (e) {
     row.status = "needs_review";
-    row.reason = `Needs your review: ${verdict.reason}`;
+    row.reason = `Needs your review: couldn't update the sheet (${(e as Error).message})`;
   }
-
-  await appendUpdate(row);
+  await saveUpdate(row);
   return row;
 }
 
@@ -82,17 +99,25 @@ export async function confirmUpdate(input: {
   if (!po) throw new Error(`No PO called ${input.po_id}`);
   if (po.inputs[input.item].status !== "open") throw new Error(`${input.po_id} ${input.item} is already delivered`);
 
-  if (!(await setEta(po.po_id, input.item, input.eta))) throw new Error("PO row not found in the sheet");
-
   const done: UpdateRow = {
     ...row,
     po_id: po.po_id,
     item: input.item,
     vendor: po.inputs[input.item].vendor,
+    old_eta: po.inputs[input.item].eta,
     new_eta: input.eta,
-    status: "confirmed",
-    reason: "Confirmed by you",
+    status: "pending",
+    reason: "Updating the PO…",
   };
+  await saveUpdate(done); // log first
+  if (!(await setEta(po.po_id, input.item, input.eta))) {
+    done.status = "needs_review";
+    done.reason = "Needs your review: PO row not found in the sheet";
+    await saveUpdate(done);
+    throw new Error("PO row not found in the sheet");
+  }
+  done.status = "confirmed";
+  done.reason = "Confirmed by you";
   await saveUpdate(done);
   return done;
 }

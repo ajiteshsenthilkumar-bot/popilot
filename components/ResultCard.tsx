@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { formatDay } from "@/lib/dates";
 import { ITEMS, type Item, type PO, type UpdateRow } from "@/lib/types";
 
 const LABEL: Record<UpdateRow["status"], { text: string; cls: string }> = {
+  pending: { text: "Update incomplete: check the sheet", cls: "warn" },
   applied: { text: "PO updated", cls: "ok" },
   confirmed: { text: "Confirmed by you", cls: "ok" },
   needs_review: { text: "Needs your review", cls: "warn" },
@@ -46,7 +48,11 @@ export function ResultCard({ u, pos, onDone }: { u: UpdateRow; pos: PO[]; onDone
         <dt>Vendor</dt><dd>{u.vendor || "—"}</dd>
         <dt>PO</dt><dd>{u.po_id || "—"}</dd>
         <dt>Item</dt><dd>{u.item || "—"}</dd>
-        <dt>New ETA</dt><dd>{u.new_eta || "—"} {u.eta_expression && <span className="sub2">({u.eta_expression})</span>}</dd>
+        <dt>ETA change</dt>
+        <dd>
+          {u.old_eta ? formatDay(u.old_eta) : "—"} → <strong>{u.new_eta ? formatDay(u.new_eta) : "—"}</strong>{" "}
+          {u.eta_expression && <span className="sub2">(read as: {u.eta_expression})</span>}
+        </dd>
         <dt>Confidence</dt>
         <dd>
           <span className={`bar ${low ? "low" : ""}`}><i style={{ width: `${Math.round(u.confidence * 100)}%` }} /></span>

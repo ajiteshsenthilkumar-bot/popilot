@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addDays, diffDays, resolveEta, weekdayName } from "@/lib/dates";
+import { addDays, diffDays, formatDay, resolveEta, weekdayName } from "@/lib/dates";
 import { TODAY } from "./helpers";
 
 describe("dates", () => {
@@ -24,6 +24,12 @@ describe("dates", () => {
     expect(resolveEta({ type: "absolute", value: "2026-02-31" }, TODAY)).toBeNull();
     expect(resolveEta({ type: "relative_days", value: -2 }, TODAY)).toBeNull();
     expect(resolveEta({ type: "relative_days", value: 1.5 }, TODAY)).toBeNull();
+  });
+
+  it("formats a day with its weekday", () => {
+    expect(formatDay("2026-10-26")).toMatch(/Mon/);
+    expect(formatDay("2026-10-26")).toMatch(/26/);
+    expect(formatDay("")).toBe("—");
   });
 
   it("adds and diffs days across month ends", () => {

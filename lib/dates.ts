@@ -47,6 +47,13 @@ export function weekdayName(iso: string): string {
   return WEEKDAYS[d.getUTCDay()];
 }
 
+// "2026-10-26" -> "Mon 26 Oct" so a misread weekday is easy to spot on screen.
+export function formatDay(iso: string): string {
+  const d = toUtc(iso);
+  if (!d) return iso || "—";
+  return d.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+}
+
 // Turn the AI's label into a real date. Returns null if it can't be resolved.
 // "monday" means the NEXT Monday after today (today itself doesn't count).
 export function resolveEta(expr: EtaExpression | null, today: string): string | null {

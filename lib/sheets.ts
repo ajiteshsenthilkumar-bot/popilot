@@ -12,7 +12,7 @@ export const PO_HEADERS = [
 
 export const UPDATE_HEADERS = [
   "id", "timestamp", "original_text", "source", "vendor", "po_id", "item",
-  "eta_expression", "new_eta", "confidence", "status", "reason",
+  "eta_expression", "old_eta", "new_eta", "confidence", "status", "reason",
 ];
 
 export function sheetsConfigured(): boolean {
@@ -123,7 +123,7 @@ export async function sheetSetEta(po_id: string, item: Item, eta: string): Promi
 function updateToRow(u: UpdateRow): (string | number)[] {
   return [
     u.id, u.timestamp, u.original_text, u.source, u.vendor, u.po_id, u.item,
-    u.eta_expression, u.new_eta, u.confidence, u.status, u.reason,
+    u.eta_expression, u.old_eta, u.new_eta, u.confidence, u.status, u.reason,
   ];
 }
 
@@ -131,8 +131,8 @@ function rowToUpdate(r: string[]): UpdateRow {
   return {
     id: r[0], timestamp: r[1], original_text: r[2], source: r[3] === "voice" ? "voice" : "text",
     vendor: r[4] ?? "", po_id: r[5] ?? "", item: r[6] ?? "", eta_expression: r[7] ?? "",
-    new_eta: r[8] ?? "", confidence: Number(r[9]) || 0,
-    status: (r[10] as UpdateRow["status"]) || "needs_review", reason: r[11] ?? "",
+    old_eta: r[8] ?? "", new_eta: r[9] ?? "", confidence: Number(r[10]) || 0,
+    status: (r[11] as UpdateRow["status"]) || "needs_review", reason: r[12] ?? "",
   };
 }
 

@@ -9,14 +9,14 @@ Forward a vendor's delay message (WhatsApp text or voice-note transcript, Hingli
 
 **What is AI and what is plain code?** Claude only reads messy text and fills labels. Every date, day-of-stock number, comparison and the alert wording is ordinary code in `lib/` (`dates.ts`, `risk.ts`, `gate.ts`).
 
-## Run it (demo mode, no keys needed to look around)
+## Run it
 
 ```bash
 npm install
 npm run dev
 ```
 
-Open http://localhost:3000. Without Google keys it runs in "demo mode" (data in memory). Without `ANTHROPIC_API_KEY`, parsing shows "needs your review" and changes nothing.
+The app needs your Google Sheet (below). Until it's connected, the page shows a red message saying so. Without `ANTHROPIC_API_KEY`, parsing shows "needs your review" and changes nothing.
 
 ## Connect everything (about 15 minutes)
 
@@ -34,7 +34,7 @@ Open http://localhost:3000. Without Google keys it runs in "demo mode" (data in 
 npm run seed
 ```
 
-6. `npm run dev` again. The yellow demo banner disappears and you're on your real sheet.
+6. `npm run dev`. The board loads from your real sheet. Each parsed message also shows the old ETA → new ETA with weekdays, so a misread date is easy to spot.
 
 ## Try the 3 tests
 
