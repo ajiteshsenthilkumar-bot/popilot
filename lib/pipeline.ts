@@ -1,0 +1,98 @@
+// The flow for one message: Claude proposes -> plain-code gate decides -> sheet changes (or not).
+import { extractProposal } from "./claude";
+import { isValidIso, todayIST } from "./dates";
+import { evaluate } from "./gate";
+import { describeEta } from "./sanitize";
+import { appendUpdate, getPOs, getUpdates, saveUpdate, setEta } from "./store";
+import { ITEMS, type Item, type Proposal, type UpdateRow } from "./types";
+
+const newId = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+
+export async function processMessage(input: {
+  text: string;
+  source: "text" | "voice";
+  sender?: string;
+}): Promise<UpdateRow> {
+  const today = todayIST();
+  const pos = await getPOs();
+
+  const row: UpdateRow = {
+    id: newId(),
+    timestamp: new Date().toISOString(),
+    original_text: input.text,
+    source: input.source,
+    vendor: "",
+    po_id: "",
+    item: "",
+    eta_expression: "",
+    new_eta: "",
+    confidence: 0,
+    status: "needs_review",
+    reason: "",
+  };
+
+  let proposal: Proposal | null = null;
+  try {
+    proposal = await extractProposal({ text: input.text, source: input.source, sender: input.sender, today, openPOs: pos });
+  } catch (e) {
+    // If the AI is down we change nothing and ask the human.
+    row.reason = `Needs your review: couldn't read this message (${(e as Error).message})`;
+    await appendUpdate(row);
+    return row;
+  }
+
+  row.vendor = proposal.vendor ?? "";
+  row.po_id = proposal.po_id ?? "";
+  row.item = proposal.item ?? "";
+  row.eta_expression = describeEta(proposal.eta_expression);
+  row.confidence = proposal.confidence;
+
+  const verdict = evaluate(proposal, pos, today);
+  row.new_eta = verdict.ok ? verdict.newEta : verdict.newEta ?? "";
+
+  if (verdict.ok) {
+    const changed = await setEta(verdict.po.po_id, verdict.item, verdict.newEta);
+    row.status = changed ? "applied" : "needs_review";
+    row.reason = changed ? proposal.reason : "Needs your review: PO row not found in the sheet";
+  } else {
+    row.status = "needs_review";
+    row.reason = `Needs your review: ${verdict.reason}`;
+  }
+
+  await appendUpdate(row);
+  return row;
+}
+
+// One-tap confirm by the human. The person picks/approves the PO, item and date.
+export async function confirmUpdate(input: {
+  id: string;
+  po_id: string;
+  item: Item;
+  eta: string;
+}): Promise<UpdateRow> {
+  if (!ITEMS.includes(input.item)) throw new Error("Pick manufacturer, packaging or label");
+  if (!isValidIso(input.eta)) throw new Error("Pick a valid date");
+
+  const [updates, pos] = await Promise.all([getUpdates(), getPOs()]);
+  const row = updates.find((u) => u.id === input.id);
+  if (!row) throw new Error("That message was not found");
+  if (row.status !== "needs_review") throw new Error("That message was already handled");
+
+  const po = pos.find((p) => p.po_id === input.po_id);
+  if (!po) throw new Error(`No PO called ${input.po_id}`);
+  if (po.inputs[input.item].status !== "open") throw new Error(`${input.po_id} ${input.item} is already delivered`);
+
+  if (!(await setEta(po.po_id, input.item, input.eta))) throw new Error("PO row not found in the sheet");
+
+  const done: UpdateRow = {
+    ...row,
+    po_id: po.po_id,
+    item: input.item,
+    vendor: po.inputs[input.item].vendor,
+    new_eta: input.eta,
+    status: "confirmed",
+    reason: "Confirmed by you",
+  };
+  await saveUpdate(done);
+  return done;
+}

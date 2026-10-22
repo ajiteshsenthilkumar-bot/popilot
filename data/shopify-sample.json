@@ -1,0 +1,6 @@
+[
+  { "sku": "SKU-SERUM", "stock": 40, "daily_sales": 10 },
+  { "sku": "SKU-CREAM", "stock": 300, "daily_sales": 10 },
+  { "sku": "SKU-HAIROIL", "stock": 90, "daily_sales": 15 },
+  { "sku": "SKU-LIPBALM", "stock": 200, "daily_sales": 8 }
+]

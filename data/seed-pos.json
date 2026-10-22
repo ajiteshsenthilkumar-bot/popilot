@@ -1,0 +1,46 @@
+[
+  {
+    "po_id": "PO-101",
+    "sku": "SKU-SERUM",
+    "product": "Glow Serum",
+    "qty": 500,
+    "inputs": {
+      "manufacturer": { "vendor": "Shree Labs", "eta_in_days": 2, "status": "open" },
+      "packaging": { "vendor": "Pack Wale", "eta_in_days": 3, "status": "open" },
+      "label": { "vendor": "Rajesh Labels", "eta_in_days": 2, "status": "open" }
+    }
+  },
+  {
+    "po_id": "PO-102",
+    "sku": "SKU-CREAM",
+    "product": "Radiance Cream",
+    "qty": 800,
+    "inputs": {
+      "manufacturer": { "vendor": "Shree Labs", "eta_in_days": 5, "status": "open" },
+      "packaging": { "vendor": "Pack Wale", "eta_in_days": 6, "status": "open" },
+      "label": { "vendor": "Sai Prints", "eta_in_days": 7, "status": "open" }
+    }
+  },
+  {
+    "po_id": "PO-103",
+    "sku": "SKU-HAIROIL",
+    "product": "Amla Hair Oil",
+    "qty": 1000,
+    "inputs": {
+      "manufacturer": { "vendor": "Kumar Naturals", "eta_in_days": 4, "status": "open" },
+      "packaging": { "vendor": "Pack Wale", "eta_in_days": 4, "status": "open" },
+      "label": { "vendor": "Sai Prints", "eta_in_days": 5, "status": "open" }
+    }
+  },
+  {
+    "po_id": "PO-104",
+    "sku": "SKU-LIPBALM",
+    "product": "Cherry Lip Balm",
+    "qty": 1200,
+    "inputs": {
+      "manufacturer": { "vendor": "Gloss Co", "eta_in_days": 0, "status": "delivered" },
+      "packaging": { "vendor": "Pack Wale", "eta_in_days": 3, "status": "open" },
+      "label": { "vendor": "Sai Prints", "eta_in_days": 0, "status": "delivered" }
+    }
+  }
+]
