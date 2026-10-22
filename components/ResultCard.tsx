@@ -12,8 +12,9 @@ const LABEL: Record<UpdateRow["status"], { text: string; cls: string }> = {
 };
 
 export function ResultCard({ u, pos, onDone }: { u: UpdateRow; pos: PO[]; onDone: () => void }) {
-  const [poId, setPoId] = useState(u.po_id || pos[0]?.po_id || "");
-  const [item, setItem] = useState<Item>((ITEMS as readonly string[]).includes(u.item) ? (u.item as Item) : "label");
+  // Only pre-fill what the AI actually proposed. Never default to the first PO: a blank choice must be made by a human.
+  const [poId, setPoId] = useState(pos.some((p) => p.po_id === u.po_id) ? u.po_id : "");
+  const [item, setItem] = useState<Item | "">((ITEMS as readonly string[]).includes(u.item) ? (u.item as Item) : "");
   const [eta, setEta] = useState(u.new_eta || "");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -22,6 +23,7 @@ export function ResultCard({ u, pos, onDone }: { u: UpdateRow; pos: PO[]; onDone
   const s = LABEL[u.status];
 
   async function confirm() {
+    if (busy || !poId || !item || !eta) return; // guard against double-clicks and half-filled choices
     setBusy(true);
     setErr("");
     const res = await fetch("/api/confirm", {
@@ -66,13 +68,15 @@ export function ResultCard({ u, pos, onDone }: { u: UpdateRow; pos: PO[]; onDone
           <div className="sub2" style={{ marginBottom: 6 }}>Nothing was changed. Check the guess below, fix it if needed, then confirm.</div>
           <div className="row">
             <select value={poId} onChange={(e) => setPoId(e.target.value)} aria-label="PO">
+              <option value="">Choose PO…</option>
               {pos.map((p) => <option key={p.po_id} value={p.po_id}>{p.po_id} · {p.product}</option>)}
             </select>
-            <select value={item} onChange={(e) => setItem(e.target.value as Item)} aria-label="Item">
+            <select value={item} onChange={(e) => setItem(e.target.value as Item | "")} aria-label="Item">
+              <option value="">Choose item…</option>
               {ITEMS.map((i) => <option key={i} value={i}>{i}</option>)}
             </select>
             <input type="date" value={eta} onChange={(e) => setEta(e.target.value)} aria-label="New ETA" />
-            <button className="primary" onClick={confirm} disabled={busy || !eta}>{busy ? "Saving…" : "Confirm"}</button>
+            <button className="primary" onClick={confirm} disabled={busy || !eta || !poId || !item}>{busy ? "Saving…" : "Confirm"}</button>
           </div>
           {err && <div className="banner bad" style={{ marginTop: 8 }}>{err}</div>}
         </div>

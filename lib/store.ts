@@ -29,7 +29,7 @@ function useSheet(): boolean {
   if (testMode()) return false;
   if (!sheets.sheetsConfigured()) {
     throw new Error(
-      "Google Sheets isn't connected yet. Fill in the GOOGLE_* values in .env.local and run `npm run seed` (steps are in the README).",
+      "Google Sheets isn't connected yet. Fill in SHEETS_BRIDGE_URL and SHEETS_BRIDGE_TOKEN in .env.local and run `npm run seed` (steps are in the README).",
     );
   }
   return true;

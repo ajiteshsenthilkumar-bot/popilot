@@ -1,5 +1,6 @@
-// Google Sheets as the database. Two tabs: "POs" (the board) and "Updates" (every parsed message).
-import { google } from "googleapis";
+// Google Sheet as the database, reached through a small Apps Script "bridge" that lives inside the sheet
+// (see apps-script/Code.gs). No Google Cloud key needed: every request carries a secret token instead.
+// Two tabs: "POs" (the board) and "Updates" (every parsed message).
 import { ITEMS, type Item, type PO, type UpdateRow } from "./types";
 
 export const PO_TAB = "POs";
@@ -16,52 +17,50 @@ export const UPDATE_HEADERS = [
 ];
 
 export function sheetsConfigured(): boolean {
-  return Boolean(
-    process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL && process.env.GOOGLE_PRIVATE_KEY && process.env.GOOGLE_SHEET_ID,
-  );
+  return Boolean(process.env.SHEETS_BRIDGE_URL && process.env.SHEETS_BRIDGE_TOKEN);
 }
 
-function client() {
-  const auth = new google.auth.JWT({
-    email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-    key: (process.env.GOOGLE_PRIVATE_KEY ?? "").replace(/\\n/g, "\n"),
-    scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+async function callOnce(action: string, payload: Record<string, unknown>): Promise<any> {
+  const res = await fetch(process.env.SHEETS_BRIDGE_URL as string, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify({ token: process.env.SHEETS_BRIDGE_TOKEN, action, ...payload }),
+    redirect: "follow",
+    signal: AbortSignal.timeout(30_000),
   });
-  return google.sheets({ version: "v4", auth });
+  const text = await res.text();
+  let data: any;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error(
+      "The Google Sheet bridge didn't answer properly. Check SHEETS_BRIDGE_URL, and that the web app is deployed with access set to Anyone.",
+    );
+  }
+  if (!data.ok) throw new Error(`Google Sheet bridge: ${data.error}`);
+  return data;
 }
 
-const id = () => process.env.GOOGLE_SHEET_ID as string;
-
-// column letter for a 1-based index (1 -> A)
-function col(n: number): string {
-  let s = "";
-  for (; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + ((n - 1) % 26)) + s;
-  return s;
+// The bridge (Apps Script) is occasionally slow or flaky. Retry actions that are safe to repeat.
+// "append" is never retried: a repeat could add the same row twice.
+async function call(action: string, payload: Record<string, unknown> = {}): Promise<any> {
+  const attempts = action === "append" ? 1 : 3;
+  let lastErr: unknown;
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      return await callOnce(action, payload);
+    } catch (e) {
+      lastErr = e;
+      if (/unauthorized|unknown (tab|action)/.test((e as Error).message)) break; // retrying can't fix these
+      if (i < attempts) await new Promise((r) => setTimeout(r, 800 * i));
+    }
+  }
+  throw lastErr;
 }
 
 // Create the two tabs and header rows if they don't exist yet.
 export async function ensureTabs(): Promise<void> {
-  const api = client();
-  const meta = await api.spreadsheets.get({ spreadsheetId: id() });
-  const have = new Set(meta.data.sheets?.map((s) => s.properties?.title));
-  const missing = [PO_TAB, UPDATES_TAB].filter((t) => !have.has(t));
-  if (missing.length) {
-    await api.spreadsheets.batchUpdate({
-      spreadsheetId: id(),
-      requestBody: { requests: missing.map((title) => ({ addSheet: { properties: { title } } })) },
-    });
-  }
-  for (const [tab, headers] of [[PO_TAB, PO_HEADERS], [UPDATES_TAB, UPDATE_HEADERS]] as const) {
-    const first = await api.spreadsheets.values.get({ spreadsheetId: id(), range: `${tab}!A1:A1` });
-    if (!first.data.values?.length) {
-      await api.spreadsheets.values.update({
-        spreadsheetId: id(),
-        range: `${tab}!A1`,
-        valueInputOption: "RAW",
-        requestBody: { values: [headers] },
-      });
-    }
-  }
+  await call("ensure", { headers: { [PO_TAB]: PO_HEADERS, [UPDATES_TAB]: UPDATE_HEADERS } });
 }
 
 function poToRow(po: PO): (string | number)[] {
@@ -85,39 +84,19 @@ function rowToPo(r: string[]): PO {
 }
 
 export async function sheetGetPOs(): Promise<PO[]> {
-  const res = await client().spreadsheets.values.get({
-    spreadsheetId: id(),
-    range: `${PO_TAB}!A2:${col(PO_HEADERS.length)}`,
-  });
-  return (res.data.values ?? []).filter((r) => r[0]).map(rowToPo);
+  const { values } = await call("read", { tab: PO_TAB });
+  return (values as string[][]).filter((r) => r[0]).map(rowToPo);
 }
 
 export async function sheetReplacePOs(pos: PO[]): Promise<void> {
-  const api = client();
-  await api.spreadsheets.values.clear({ spreadsheetId: id(), range: `${PO_TAB}!A2:${col(PO_HEADERS.length)}` });
-  if (!pos.length) return;
-  await api.spreadsheets.values.update({
-    spreadsheetId: id(),
-    range: `${PO_TAB}!A2`,
-    valueInputOption: "RAW",
-    requestBody: { values: pos.map(poToRow) },
-  });
+  await call("replace", { tab: PO_TAB, rows: pos.map(poToRow) });
 }
 
 // Change one ETA cell (and nothing else) on the board.
 export async function sheetSetEta(po_id: string, item: Item, eta: string): Promise<boolean> {
-  const api = client();
-  const ids = await api.spreadsheets.values.get({ spreadsheetId: id(), range: `${PO_TAB}!A2:A` });
-  const idx = (ids.data.values ?? []).findIndex((r) => r[0] === po_id);
-  if (idx === -1) return false;
-  const column = col(PO_HEADERS.indexOf(`${item}_eta`) + 1);
-  await api.spreadsheets.values.update({
-    spreadsheetId: id(),
-    range: `${PO_TAB}!${column}${idx + 2}`,
-    valueInputOption: "RAW",
-    requestBody: { values: [[eta]] },
-  });
-  return true;
+  const col = PO_HEADERS.indexOf(`${item}_eta`) + 1;
+  const { found } = await call("setCell", { tab: PO_TAB, key: po_id, col, value: eta });
+  return Boolean(found);
 }
 
 function updateToRow(u: UpdateRow): (string | number)[] {
@@ -137,33 +116,15 @@ function rowToUpdate(r: string[]): UpdateRow {
 }
 
 export async function sheetAppendUpdate(u: UpdateRow): Promise<void> {
-  await client().spreadsheets.values.append({
-    spreadsheetId: id(),
-    range: `${UPDATES_TAB}!A1`,
-    valueInputOption: "RAW",
-    insertDataOption: "INSERT_ROWS",
-    requestBody: { values: [updateToRow(u)] },
-  });
+  await call("append", { tab: UPDATES_TAB, row: updateToRow(u) });
 }
 
 export async function sheetGetUpdates(): Promise<UpdateRow[]> {
-  const res = await client().spreadsheets.values.get({
-    spreadsheetId: id(),
-    range: `${UPDATES_TAB}!A2:${col(UPDATE_HEADERS.length)}`,
-  });
-  return (res.data.values ?? []).filter((r) => r[0]).map(rowToUpdate);
+  const { values } = await call("read", { tab: UPDATES_TAB });
+  return (values as string[][]).filter((r) => r[0]).map(rowToUpdate);
 }
 
 export async function sheetSaveUpdate(u: UpdateRow): Promise<boolean> {
-  const api = client();
-  const ids = await api.spreadsheets.values.get({ spreadsheetId: id(), range: `${UPDATES_TAB}!A2:A` });
-  const idx = (ids.data.values ?? []).findIndex((r) => r[0] === u.id);
-  if (idx === -1) return false;
-  await api.spreadsheets.values.update({
-    spreadsheetId: id(),
-    range: `${UPDATES_TAB}!A${idx + 2}`,
-    valueInputOption: "RAW",
-    requestBody: { values: [updateToRow(u)] },
-  });
-  return true;
+  const { found } = await call("replaceRow", { tab: UPDATES_TAB, key: u.id, row: updateToRow(u) });
+  return Boolean(found);
 }

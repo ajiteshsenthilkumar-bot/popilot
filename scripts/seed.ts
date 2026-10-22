@@ -16,7 +16,7 @@ async function main() {
   const sheets = await import("../lib/sheets");
   const { seedPOs } = await import("../lib/store");
   if (!sheets.sheetsConfigured()) {
-    console.error("Google Sheets isn't configured. Fill GOOGLE_* values in .env.local first.");
+    console.error("The sheet bridge isn't configured. Fill SHEETS_BRIDGE_URL and SHEETS_BRIDGE_TOKEN in .env.local first.");
     process.exit(1);
   }
   await sheets.ensureTabs();
