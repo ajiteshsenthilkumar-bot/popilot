@@ -2,12 +2,12 @@
 
 Forward a vendor's delay message (WhatsApp text or voice-note transcript, Hinglish is fine) and POPilot:
 
-1. uses Claude to read it into fields (vendor, PO, item, new ETA, confidence),
+1. uses an AI model to read it into fields (vendor, PO, item, new ETA, confidence),
 2. checks with plain code that this vendor really has an open PO for that item,
 3. updates the PO's ETA in your Google Sheet (or asks you to review if anything is unclear),
 4. compares the real ETA with how many days of Shopify stock are left, and warns you about a stock-out.
 
-**What is AI and what is plain code?** Claude only reads messy text and fills labels. Every date, day-of-stock number, comparison and the alert wording is ordinary code in `lib/` (`dates.ts`, `risk.ts`, `gate.ts`).
+**What is AI and what is plain code?** The AI model (a Google Gemini model via OpenRouter) only reads messy text and fills labels. Every date, day-of-stock number, comparison and the alert wording is ordinary code in `lib/` (`dates.ts`, `risk.ts`, `gate.ts`).
 
 ## Run it
 
@@ -16,18 +16,18 @@ npm install
 npm run dev
 ```
 
-The app needs your Google Sheet (below). Until it's connected, the page shows a red message saying so. Without `ANTHROPIC_API_KEY`, parsing shows "needs your review" and changes nothing.
+The app needs your Google Sheet (below). Until it's connected, the page shows a red message saying so. Without `OPENROUTER_API_KEY`, parsing shows "needs your review" and changes nothing.
 
 ## Connect everything (about 15 minutes)
 
-1. **Anthropic key**: create one at console.anthropic.com. Put it in `.env.local` as `ANTHROPIC_API_KEY=...`.
+1. **AI key**: create one at openrouter.ai/keys and add some credit. Put it in `.env.local` as `OPENROUTER_API_KEY=...`. The app calls `google/gemini-3.7-flash` through OpenRouter, served by Google's own infrastructure only (set `AI_MODEL` to use another `google/` model).
 2. **Google Sheet**: create a blank Google Sheet. Copy the ID from its URL (`docs.google.com/spreadsheets/d/<THIS PART>/edit`) into `GOOGLE_SHEET_ID`.
 3. **Service account** (a robot Google account that edits the sheet for you):
    - console.cloud.google.com → create a project → enable **Google Sheets API**.
    - IAM & Admin → Service Accounts → create one → Keys → Add key → JSON. A file downloads.
    - From that JSON: `client_email` → `GOOGLE_SERVICE_ACCOUNT_EMAIL`, `private_key` → `GOOGLE_PRIVATE_KEY` (keep the `\n` characters, wrap in double quotes).
    - In your sheet click **Share** and give that `client_email` **Editor** access.
-4. Copy `.env.example` to `.env.local` and fill the four values. **Never commit `.env.local`** (it is git-ignored).
+4. Copy `.env.example` to `.env.local` and fill the values. **Never commit `.env.local`** (it is git-ignored).
 5. Create the tabs and load starter POs:
 
 ```bash
