@@ -31,6 +31,12 @@ export default function Home() {
 
   useEffect(() => { load(); }, [load]);
 
+  // WhatsApp updates arrive on their own, so re-check every 30 seconds while this tab is visible.
+  useEffect(() => {
+    const t = setInterval(() => { if (document.visibilityState === "visible") load(); }, 30_000);
+    return () => clearInterval(t);
+  }, [load]);
+
   return (
     <main className="wrap">
       <div className="top">

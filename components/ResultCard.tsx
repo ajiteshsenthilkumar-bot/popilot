@@ -41,7 +41,9 @@ export function ResultCard({ u, pos, onDone }: { u: UpdateRow; pos: PO[]; onDone
     <div className={`card ${u.status === "needs_review" ? "review" : ""}`}>
       <div className="row" style={{ justifyContent: "space-between" }}>
         <span className={`pill ${s.cls}`}>{s.text}</span>
-        <span className="sub2">{u.source === "voice" ? "Voice note" : "Text"} · {new Date(u.timestamp).toLocaleTimeString()}</span>
+        <span className="sub2">
+          {u.id.startsWith("wa_") ? "WhatsApp · " : ""}{u.source === "voice" ? "Voice note" : "Text"} · {new Date(u.timestamp).toLocaleTimeString()}
+        </span>
       </div>
 
       <div className="orig">{u.original_text}</div>

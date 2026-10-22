@@ -37,6 +37,8 @@ export interface Proposal {
   eta_expression: EtaExpression | null;
   confidence: number; // 0..1
   reason: string;
+  // false = not about order/delivery/production status (chit-chat, thanks, etc). Missing counts as true.
+  relevant?: boolean;
 }
 
 // "pending" = logged but the PO write hasn't finished (or failed midway): visible, never silent.

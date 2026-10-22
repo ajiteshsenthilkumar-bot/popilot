@@ -21,6 +21,7 @@ export function sanitizeProposal(raw: any): Proposal {
     eta_expression: sanitizeEta(raw?.eta_expression),
     confidence: Number.isFinite(c) ? Math.min(1, Math.max(0, c)) : 0,
     reason: str(raw?.reason) ?? "",
+    relevant: raw?.relevant !== false, // only an explicit false counts as "not relevant"
   };
 }
 

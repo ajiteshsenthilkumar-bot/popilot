@@ -25,8 +25,11 @@ Reply with ONE JSON object and nothing else, with exactly these keys:
   "eta_expression": object or null,
   "po_id": string or null,
   "confidence": number from 0 to 1,
-  "reason": string
+  "reason": string,
+  "relevant": boolean
 }
+
+- relevant: true ONLY if the message is about the status, timing, quantity or delay of an order, production, packaging, labels or a delivery. false for greetings, thanks, "ok", jokes, payments chat, photos described in text, or anything unrelated to supply status. When relevant is false, set the other fields to null and confidence to 0.
 
 - vendor: the vendor's name as written in the message or given as the chat/sender name. null if unknown.
 - item: which input is being delayed or updated. "manufacturer" = production, batch, maal, filling, manufacturing. "packaging" = box, carton, bottle, pouch, jar, packaging. "label" = label, sticker, print. null if unclear.
@@ -58,7 +61,7 @@ function parseJson(text: string): unknown {
   }
 }
 
-async function callOpenRouter(apiKey: string, body: object): Promise<any> {
+export async function callOpenRouter(apiKey: string, body: object): Promise<any> {
   let lastErr = "";
   for (let attempt = 1; attempt <= 4; attempt++) {
     const res = await fetch(ENDPOINT, {

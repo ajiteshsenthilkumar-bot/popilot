@@ -48,9 +48,31 @@ Use the sample chips in the parser panel.
 
 Automated checks (no API key needed, Claude is faked): `npm test`.
 
+## Live WhatsApp (Meta Cloud API, free test number)
+
+WhatsApp does not allow any app to read your existing chats or groups. POPilot receives only what is **sent or forwarded to its own WhatsApp number**, and only from people on your allow-list. Everyone else is dropped before any AI sees the message, and nothing about them is stored.
+
+What happens to each message: allow-list check → skip duplicates → voice note turned into text → chit-chat skipped → AI decides if it is about supply status (if not, dropped and not stored) → safety gate → PO updated, or "needs your review". Only the transcript of a voice note is kept, never the audio.
+
+**One-time setup (about 20 minutes, screens may look slightly different):**
+1. Go to developers.facebook.com, sign in with Facebook, **Create app** (type: Business) and add the **WhatsApp** product.
+2. WhatsApp → **API setup**: Meta gives you a free **test phone number** and a temporary **access token** (lasts about 24 hours; a permanent one needs a System User in Business settings). Under "To", add the phone numbers that will send messages and verify each with the code WhatsApp sends.
+3. App settings → Basic → **App secret** (click Show).
+4. Put these in `.env.local` AND in Vercel (Project → Settings → Environment Variables), then redeploy:
+   - `WHATSAPP_VERIFY_TOKEN`: already generated for you in `.env.local`
+   - `WHATSAPP_APP_SECRET`: the app secret from step 3
+   - `WHATSAPP_ACCESS_TOKEN`: the token from step 2
+   - `WHATSAPP_ALLOWED`: who may feed POPilot, e.g. `919812345678=Rajesh Labels,919800000001=Pack Wale,919876500000=*` (`phone=Vendor name` for a vendor's own number, `phone=*` for YOUR number when you forward vendor messages)
+5. WhatsApp → **Configuration** → Webhook: Callback URL `https://<your-site>.vercel.app/api/whatsapp`, Verify token = your `WHATSAPP_VERIFY_TOKEN`. Click **Verify and save**, then **subscribe** to the `messages` field.
+6. From an allowed phone, send "labels Monday tak nahi aayenge" (text or voice note) to the test number. Within about 30 seconds the update shows on the screen, marked "WhatsApp".
+
+Ways to feed it: (1) a vendor messages the POPilot number directly, (2) you forward a vendor's message or voice note to it, (3) a WhatsApp group that includes the number, only if Meta makes group messages available to you.
+
+Not verified yet: group messages, and exactly which senders Meta's test number accepts messages from. If a vendor's message doesn't arrive, add their number under "To" in step 2.
+
 ## Voice notes
 
-For the demo you paste a transcript. For real audio later, transcribe first, then paste/send the text into the same flow. Options: OpenAI Whisper API (simplest) or Sarvam AI "Saarika" (built for Indian languages and Hinglish).
+In the app you can still paste a transcript. Voice notes that arrive on WhatsApp are transcribed automatically by a Google Gemini model through OpenRouter (about $0.002 per 12-second note, nothing extra to set up). If Hinglish accuracy turns out poor, Sarvam AI "Saarika" is a drop-in alternative to try in `lib/transcribe.ts`.
 
 ## Real Shopify later
 

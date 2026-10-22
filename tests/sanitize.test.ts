@@ -13,7 +13,15 @@ describe("sanitizeProposal", () => {
 
   it("neutralises garbage", () => {
     const p = sanitizeProposal({ vendor: 5, item: "rocket", po_id: "", eta_expression: { type: "x" }, confidence: "high" });
-    expect(p).toEqual({ vendor: null, item: null, po_id: null, eta_expression: null, confidence: 0, reason: "" });
+    // a garbled AI reply counts as relevant, so a person sees it instead of it being silently dropped
+    expect(p).toEqual({ vendor: null, item: null, po_id: null, eta_expression: null, confidence: 0, reason: "", relevant: true });
+  });
+
+  it("only an explicit false marks a message as not relevant", () => {
+    expect(sanitizeProposal({ relevant: false }).relevant).toBe(false);
+    expect(sanitizeProposal({ relevant: "no" }).relevant).toBe(true);
+    expect(sanitizeProposal({}).relevant).toBe(true);
+    expect(sanitizeProposal({ relevant: true }).relevant).toBe(true);
   });
 
   it("clamps confidence to 0..1 and handles null input", () => {

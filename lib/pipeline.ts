@@ -10,16 +10,24 @@ import { ITEMS, type Item, type Proposal, type UpdateRow } from "./types";
 
 const newId = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
-export async function processMessage(input: {
+export interface ProcessInput {
   text: string;
   source: "text" | "voice";
   sender?: string;
-}): Promise<UpdateRow> {
+  // WhatsApp message id (as "wa_<id>"): makes a re-delivered message recognisable as a duplicate
+  id?: string;
+  // Live feeds only: if the AI says the message isn't about supply status, drop it and store nothing.
+  dropIrrelevant?: boolean;
+}
+
+export async function processMessage(input: ProcessInput & { dropIrrelevant: true }): Promise<UpdateRow | null>;
+export async function processMessage(input: ProcessInput): Promise<UpdateRow>;
+export async function processMessage(input: ProcessInput): Promise<UpdateRow | null> {
   const today = todayIST();
   const pos = await getPOs();
 
   const row: UpdateRow = {
-    id: newId(),
+    id: input.id ?? newId(),
     timestamp: new Date().toISOString(),
     original_text: input.text,
     source: input.source,
@@ -43,6 +51,9 @@ export async function processMessage(input: {
     await appendUpdate(row);
     return row;
   }
+
+  // Not about supply status (chit-chat etc.): in a live feed we neither act on it nor keep its text.
+  if (input.dropIrrelevant && proposal.relevant === false) return null;
 
   row.vendor = proposal.vendor ?? "";
   row.po_id = proposal.po_id ?? "";

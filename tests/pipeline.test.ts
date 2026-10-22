@@ -39,6 +39,30 @@ describe("Test 1: parse updates the matching PO", () => {
   });
 });
 
+describe("live feed: irrelevant messages and ids", () => {
+  it("drops a not-relevant message and stores nothing when dropIrrelevant is on", async () => {
+    mockExtract.mockResolvedValue({ vendor: null, item: null, po_id: null, eta_expression: null, confidence: 0, reason: "greeting", relevant: false });
+    const row = await processMessage({ text: "Happy Diwali bhaiya", source: "text", dropIrrelevant: true });
+    expect(row).toBeNull();
+    expect(await getUpdates()).toEqual([]);
+  });
+
+  it("still logs a not-relevant message when pasted by hand (the review queue shows it)", async () => {
+    mockExtract.mockResolvedValue({ vendor: null, item: null, po_id: null, eta_expression: null, confidence: 0, reason: "greeting", relevant: false });
+    const row = await processMessage({ text: "Happy Diwali bhaiya", source: "text" });
+    expect(row.status).toBe("needs_review");
+    expect((await getUpdates()).length).toBe(1);
+  });
+
+  it("uses the WhatsApp message id as the row id and applies a relevant update", async () => {
+    mockExtract.mockResolvedValue(base);
+    const row = await processMessage({ text: "labels 7 din", source: "voice", sender: "Rajesh Labels", id: "wa_wamid.ABC", dropIrrelevant: true });
+    expect(row?.id).toBe("wa_wamid.ABC");
+    expect(row?.status).toBe("applied");
+    expect(row?.source).toBe("voice");
+  });
+});
+
 describe("Test 2: stock-out alert", () => {
   it("raises the template alert when labels arrive after stock runs out", async () => {
     mockExtract.mockResolvedValue(base); // labels in 7 days; sample stock lasts 4 days
