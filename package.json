@@ -8,7 +8,9 @@
     "start": "next start",
     "test": "vitest run",
     "seed": "tsx scripts/seed.ts",
-    "telegram:webhook": "tsx scripts/telegram-webhook.ts"
+    "telegram:webhook": "tsx scripts/telegram-webhook.ts",
+    "shopify:check": "tsx scripts/shopify-check.ts",
+    "shopify:seed-test-store": "tsx scripts/shopify-seed-test-store.ts"
   },
   "dependencies": {
     "next": "^15.5.0",

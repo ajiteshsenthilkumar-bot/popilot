@@ -3,13 +3,15 @@
 import { useCallback, useEffect, useState } from "react";
 import { ParserPanel } from "@/components/ParserPanel";
 import { PoBoard } from "@/components/PoBoard";
-import { RiskAlerts } from "@/components/RiskAlerts";
+import { RiskAlerts, type StockInfo } from "@/components/RiskAlerts";
 import type { PO, RiskResult, UpdateRow } from "@/lib/types";
 
 interface Board {
   today: string;
   pos: PO[];
   risks: RiskResult[];
+  stockInfo?: StockInfo;
+  missingSkus?: { po_id: string; sku: string }[];
   updates: UpdateRow[];
 }
 
@@ -50,7 +52,7 @@ export default function Home() {
         <div className="grid">
           <ParserPanel updates={board.updates} pos={board.pos} onChange={load} />
           <div className="right">
-            <RiskAlerts risks={board.risks} />
+            <RiskAlerts risks={board.risks} stockInfo={board.stockInfo} missingSkus={board.missingSkus} />
             <PoBoard pos={board.pos} risks={board.risks} />
           </div>
         </div>
