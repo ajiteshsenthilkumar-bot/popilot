@@ -22,6 +22,12 @@ async function main() {
   await sheets.ensureTabs();
   await sheets.sheetReplacePOs(seedPOs());
   console.log("Done: tabs created and 4 starter POs loaded (dates are relative to today).");
+  if (process.argv.includes("--clear-log")) {
+    await sheets.sheetClearUpdates();
+    console.log("Cleared the Updates log.");
+  } else {
+    console.log("The Updates log was kept. Add --clear-log to wipe it too: npm run seed -- --clear-log");
+  }
 }
 
 main().catch((e) => {

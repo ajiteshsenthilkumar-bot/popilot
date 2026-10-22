@@ -124,6 +124,11 @@ export async function sheetGetUpdates(): Promise<UpdateRow[]> {
   return (values as string[][]).filter((r) => r[0]).map(rowToUpdate);
 }
 
+// Wipe the message log (header row stays). Used only by `npm run seed -- --clear-log`.
+export async function sheetClearUpdates(): Promise<void> {
+  await call("replace", { tab: UPDATES_TAB, rows: [] });
+}
+
 export async function sheetSaveUpdate(u: UpdateRow): Promise<boolean> {
   const { found } = await call("replaceRow", { tab: UPDATES_TAB, key: u.id, row: updateToRow(u) });
   return Boolean(found);
