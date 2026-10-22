@@ -1,18 +1,8 @@
 // Meta WhatsApp Cloud API: check the webhook is really from Meta, read its messages, fetch voice-note audio.
 import { createHmac, timingSafeEqual } from "node:crypto";
+import type { InboundMessage } from "./channels";
 
 export const GRAPH_VERSION = "v21.0";
-
-export interface InboundMessage {
-  id: string; // Meta's message id (wamid...)
-  from: string; // sender phone, digits only
-  groupId?: string; // set when the message came from a group
-  type: string; // "text" | "audio" | "image" | ...
-  text?: string;
-  mediaId?: string;
-  mime?: string;
-  forwarded: boolean;
-}
 
 // Meta signs every webhook body with your App Secret: header "X-Hub-Signature-256: sha256=<hex>".
 export function verifySignature(rawBody: string, header: string | null, appSecret: string): boolean {
@@ -32,6 +22,7 @@ export function extractMessages(payload: any): InboundMessage[] {
       for (const m of change?.value?.messages ?? []) {
         if (!m?.id || !m?.from) continue;
         out.push({
+          channel: "whatsapp",
           id: String(m.id),
           from: String(m.from).replace(/\D/g, ""),
           groupId: m.group_id ? String(m.group_id) : undefined,

@@ -48,7 +48,22 @@ Use the sample chips in the parser panel.
 
 Automated checks (no API key needed, Claude is faked): `npm test`.
 
-## Live WhatsApp (Meta Cloud API, free test number)
+## Live messages: Telegram (quick, free)
+
+A Telegram bot is the fastest way to get live vendor updates. The bot only ever sees chats that contain it: a person messages it directly, or you add it to a vendor group. It **never replies** to anyone. Only people and groups on your allow-list (`TELEGRAM_ALLOWED`) are read; everyone else is dropped before any AI sees the message and nothing about them is stored. Messages are handled exactly like WhatsApp ones: voice notes are transcribed (only the transcript is kept), chit-chat and anything not about supply status is dropped, then the safety gate decides between a PO update and "needs your review".
+
+**Setup (about 10 minutes):**
+1. In Telegram, open **@BotFather** (the one with the blue tick) → send `/newbot` → choose a name (`POPilot`) and a username ending in `bot` (e.g. `popilot_yourname_bot`). BotFather replies with a **token**. Put it in `.env.local` as `TELEGRAM_BOT_TOKEN`. Treat it like a password and never share it.
+2. **For groups only:** send BotFather `/setprivacy` → pick your bot → **Disable**, so the bot can read all messages in a group, not just commands. Then add the bot to the vendor group. (If you change privacy after adding the bot, remove it and add it again.)
+3. Find IDs: message **@userinfobot** to get your own numeric ID. Each vendor does the same, or forwards you a message from them. A group's ID is negative (e.g. `-1001234567890`); open the group in Telegram Web and read it from the URL, or use **@getidsbot**.
+4. Set `TELEGRAM_ALLOWED`, e.g. `123456789=*,987654321=Rajesh Labels,-1001234567890=Vendor Group` (`id=Vendor name` for a vendor's own account, `id=*` for **you** when you forward vendor messages, a negative id for a group).
+5. Put `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET` and `TELEGRAM_ALLOWED` into Vercel too (Project → Settings → Environment Variables) and redeploy.
+6. Register the webhook (once, from this folder): `npm run telegram:webhook`. Check it with `npm run telegram:webhook -- --info`, switch it off with `-- --delete`.
+7. Message the bot "labels Monday tak nahi aayenge" (text or voice note) from an allowed account. Within about 30 seconds it shows on the screen, marked "Telegram".
+
+Vendors must use Telegram for this route. You can also forward their WhatsApp messages and voice notes to the bot yourself.
+
+## Live WhatsApp (Meta Cloud API, free test number) — paused
 
 WhatsApp does not allow any app to read your existing chats or groups. POPilot receives only what is **sent or forwarded to its own WhatsApp number**, and only from people on your allow-list. Everyone else is dropped before any AI sees the message, and nothing about them is stored.
 

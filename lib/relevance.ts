@@ -7,6 +7,7 @@ export function isTrivial(text: string | null | undefined): boolean {
   const t = (text ?? "").trim();
   if (!t) return true;
   if (!/[\p{L}\p{N}]/u.test(t)) return true; // only emoji / punctuation
+  if (/^\/\w+(@\w+)?$/.test(t)) return true; // bot commands like /start
   if (t.length <= 40 && SOCIAL.test(t)) return true;
   return false;
 }

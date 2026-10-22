@@ -36,6 +36,22 @@ export function parseAllowList(raw: string | undefined | null): AllowEntry[] {
   return out;
 }
 
+// Telegram version, TELEGRAM_ALLOWED, e.g.:  123456789=*,987654321=Rajesh Labels,-1001234567890=Vendor Group
+//   - a positive id is a person (name = the vendor, or * for you when you forward vendor messages)
+//   - a NEGATIVE id is a group chat the bot has been added to
+export function parseTelegramAllowList(raw: string | undefined | null): AllowEntry[] {
+  const out: AllowEntry[] = [];
+  for (const part of (raw ?? "").split(/[,;\n]+/)) {
+    const i = part.indexOf("=");
+    const left = (i === -1 ? part : part.slice(0, i)).trim();
+    const name = i === -1 ? "" : part.slice(i + 1).trim();
+    const vendor = !name || name === "*" ? null : name;
+    if (/^-\d{5,}$/.test(left)) out.push({ key: `group:${left}`, vendor });
+    else if (/^\d{5,}$/.test(left)) out.push({ key: left, vendor });
+  }
+  return out;
+}
+
 export type SenderMatch = { allowed: true; vendor: string | null } | { allowed: false };
 
 export function matchSender(entries: AllowEntry[], from: string, groupId?: string | null): SenderMatch {

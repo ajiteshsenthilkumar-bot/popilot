@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "test": "vitest run",
-    "seed": "tsx scripts/seed.ts"
+    "seed": "tsx scripts/seed.ts",
+    "telegram:webhook": "tsx scripts/telegram-webhook.ts"
   },
   "dependencies": {
     "next": "^15.5.0",

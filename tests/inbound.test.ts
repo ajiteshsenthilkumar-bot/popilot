@@ -3,11 +3,12 @@ import { createHmac } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { InboundDeps } from "@/lib/inbound";
 import { handleInbound } from "@/lib/inbound";
-import type { InboundMessage } from "@/lib/whatsapp-cloud";
+import { parseTelegramAllowList } from "@/lib/allowlist";
+import type { InboundMessage } from "@/lib/channels";
 import type { UpdateRow } from "@/lib/types";
 
 const ALLOWED = "919812345678=Rajesh Labels, 919876500000=*";
-const msg = (o: Partial<InboundMessage>): InboundMessage => ({ id: "m1", from: "919812345678", type: "text", text: "labels Monday tak nahi aayenge", forwarded: false, ...o });
+const msg = (o: Partial<InboundMessage>): InboundMessage => ({ channel: "whatsapp", id: "m1", from: "919812345678", type: "text", text: "labels Monday tak nahi aayenge", forwarded: false, ...o });
 const row = (o: Partial<UpdateRow> = {}): UpdateRow => ({
   id: "wa_m1", timestamp: "", original_text: "", source: "text", vendor: "Rajesh Labels", po_id: "PO-101", item: "label",
   eta_expression: "", old_eta: "", new_eta: "", confidence: 0.9, status: "applied", reason: "", ...o,
@@ -56,7 +57,7 @@ describe("WhatsApp inbound handling", () => {
   });
 
   it("skips chit-chat without calling the AI", async () => {
-    const s = await handleInbound([msg({ text: "ok 🙏" })], ALLOWED, deps);
+    const s = await handleInbound([msg({ text: "ok \u{1F64F}" })], ALLOWED, deps);
     expect(s.irrelevant).toBe(1);
     expect(deps.process).not.toHaveBeenCalled();
   });
@@ -96,7 +97,7 @@ describe("WhatsApp inbound handling", () => {
 
   it("transcribes a voice note, then processes the transcript as voice", async () => {
     const s = await handleInbound([msg({ id: "v1", type: "audio", text: undefined, mediaId: "MEDIA1", mime: "audio/ogg" })], ALLOWED, deps);
-    expect(deps.download).toHaveBeenCalledWith("MEDIA1", "TOKEN");
+    expect(deps.download).toHaveBeenCalledWith(expect.objectContaining({ mediaId: "MEDIA1", channel: "whatsapp" }));
     expect(deps.transcribe).toHaveBeenCalled();
     expect((deps.process as any).mock.calls[0][0]).toMatchObject({ text: "labels ab 7 din mein pahunchenge", source: "voice", id: "wa_v1" });
     expect(s.processed).toBe(1);
@@ -134,6 +135,42 @@ describe("WhatsApp inbound handling", () => {
     (deps.process as any).mockResolvedValue(row({ status: "needs_review" }));
     const s = await handleInbound([msg({})], ALLOWED, deps);
     expect(s).toMatchObject({ needsReview: 1, applied: 0 });
+  });
+});
+
+describe("Telegram messages through the same handler", () => {
+  const tg = (o: Partial<InboundMessage> = {}): InboundMessage => ({
+    channel: "telegram", id: "-1001234_55", from: "987654321", type: "text", text: "box 3 din aur lagenge", forwarded: false, ...o,
+  });
+  const TG_ALLOWED = parseTelegramAllowList("123456789=*,987654321=Pack Wale,-1001234=Vendor Group");
+
+  it("uses the tg_ id prefix and the vendor name from the allow-list", async () => {
+    const s = await handleInbound([tg()], TG_ALLOWED, deps);
+    expect(s.processed).toBe(1);
+    expect(deps.process).toHaveBeenCalledWith(expect.objectContaining({ id: "tg_-1001234_55", sender: "Pack Wale", source: "text" }));
+  });
+
+  it("drops an unknown Telegram user, even in a listed group's private chat", async () => {
+    const s = await handleInbound([tg({ from: "555555555" })], TG_ALLOWED, deps);
+    expect(s.notAllowed).toBe(1);
+    expect(deps.process).not.toHaveBeenCalled();
+  });
+
+  it("accepts a listed group, and names the vendor from the member or the group", async () => {
+    await handleInbound([tg({ groupId: "-1001234" })], TG_ALLOWED, deps);
+    expect((deps.process as any).mock.calls[0][0].sender).toBe("Pack Wale");
+    await handleInbound([tg({ id: "-1001234_56", from: "444444444", groupId: "-1001234" })], TG_ALLOWED, deps);
+    expect((deps.process as any).mock.calls[1][0].sender).toBe("Vendor Group");
+  });
+
+  it("drops a group that is not listed", async () => {
+    const s = await handleInbound([tg({ groupId: "-999999" })], TG_ALLOWED, deps);
+    expect(s.notAllowed).toBe(1);
+  });
+
+  it("a Telegram and a WhatsApp message with the same raw id are different messages", async () => {
+    const s = await handleInbound([msg({ id: "1_1" }), tg({ id: "1_1", from: "987654321" })], ["919812345678=Rajesh Labels"].join(",") + ",987654321=Pack Wale", deps);
+    expect(s.processed).toBe(2);
   });
 });
 
@@ -189,3 +226,4 @@ describe("webhook route", () => {
     expect((await POST(post(body, sig(body)))).status).toBe(503);
   });
 });
+
