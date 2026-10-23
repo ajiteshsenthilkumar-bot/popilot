@@ -124,3 +124,19 @@ Push to GitHub, import the repo in Vercel, add the four env vars in Project Sett
 ## Not built (on purpose)
 
 Live WhatsApp Business API, call transcription, auto-messaging vendors, pausing ads, reorder forecasting, multi-store, vendor reliability scores.
+
+## Managing POs from Telegram (owner only)
+
+Send these to the bot from your own (`=*`) Telegram account. No AI is involved; the bot replies to you.
+
+```
+/pos                                  list your POs
+/addpo PO-105 | Glow Serum | SKU-SERUM | 500 | label: Rajesh Labels @ 5 Nov | packaging: Sun Packers @ 1 Nov
+/eta PO-105 label 10 Nov              change a date (logged; Undo works on the page)
+/vendor PO-105 label Rajesh Labels    change a supplier
+/delivered PO-105 label               mark received
+/reopen PO-105 label 12 Nov           not received after all
+/removepo PO-105 yes                  delete a PO
+```
+
+Dates: `5 Nov`, `2026-11-05`, `monday`, `7d`. Items: manufacturer, packaging, label. A vendor sending these is ignored.

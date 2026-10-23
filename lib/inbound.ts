@@ -6,7 +6,9 @@
 //   5. the AI decides if it is about supply status; if not -> dropped, nothing stored
 //   6. otherwise the normal pipeline: safety gate -> PO update or "needs your review"
 import { matchSender, parseAllowList, type AllowEntry } from "./allowlist";
+import { sendTelegramMessage } from "./alerts";
 import { ID_PREFIX, type InboundMessage } from "./channels";
+import { isCommand, runCommand } from "./commands";
 import { processMessage, revertMessageEffects, type ProcessInput } from "./pipeline";
 import { isTrivial } from "./relevance";
 import { appendUpdate, getUpdates } from "./store";
@@ -34,6 +36,15 @@ export interface InboundDeps {
   logReview: (row: UpdateRow) => Promise<void>;
   // an edited message: undo what its earlier version(s) did
   revertEdited: (baseId: string) => Promise<{ reverted: string[]; blocked: string[] }>;
+  // an owner's typed command: runs it and replies to that chat (optional so older callers still work)
+  command?: (text: string, id: string, chatId: string) => Promise<void>;
+}
+
+async function defaultCommand(text: string, id: string, chatId: string): Promise<void> {
+  const reply = await runCommand(text, { id });
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) return;
+  try { await sendTelegramMessage(token, chatId, reply); } catch (e) { console.error("command reply failed:", (e as Error).message); }
 }
 
 // Message ids being worked on right now. A chat app can deliver the same message twice within a moment,
@@ -120,6 +131,19 @@ export async function handleInbound(
         }
       } else {
         s.unsupported++; // images, documents, stickers, reactions...
+        continue;
+      }
+
+      // A typed command ("/addpo ...") is for the owner only: plain rules, no AI, and the bot answers the owner.
+      // From anyone else (a vendor) it is dropped. An edited command is ignored so it can't run twice.
+      if (m.type === "text" && isCommand(text)) {
+        const isOwner = m.channel === "telegram" && match.vendor === null && !m.groupId;
+        if (isOwner && !m.editedAt) {
+          const run = deps.command ?? defaultCommand;
+          await run(text, id, m.from);
+          known.add(id);
+          s.processed++;
+        } else s.irrelevant++;
         continue;
       }
 

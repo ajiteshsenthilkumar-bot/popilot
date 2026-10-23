@@ -15,7 +15,7 @@ const newId = () => `${Date.now().toString(36)}${Math.random().toString(36).slic
 
 // Tell the owner on Telegram if this ETA change creates (or worsens) a stock-out risk.
 // Best effort: a problem here must never undo or hide the PO update that already succeeded.
-async function notifyRisk(poBefore: PO, item: Item, newEta: string): Promise<void> {
+export async function notifyRisk(poBefore: PO, item: Item, newEta: string): Promise<void> {
   try {
     const snap = await getStockSnapshot();
     const input = poBefore.inputs[item];

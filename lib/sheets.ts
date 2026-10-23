@@ -103,6 +103,18 @@ export async function sheetSetEta(po_id: string, item: Item, eta: string): Promi
   return Boolean(found);
 }
 
+// Add one PO as a new row at the bottom (never retried, so a repeat can't add it twice).
+export async function sheetAddPO(po: PO): Promise<void> {
+  await call("append", { tab: PO_TAB, row: poToRow(po) });
+}
+
+// Change one cell of one PO: an item's vendor, eta or status.
+export async function sheetSetPOField(po_id: string, item: Item, field: "vendor" | "eta" | "status", value: string): Promise<boolean> {
+  const col = PO_HEADERS.indexOf(`${item}_${field}`) + 1;
+  const { found } = await call("setCell", { tab: PO_TAB, key: po_id, col, value });
+  return Boolean(found);
+}
+
 function updateToRow(u: UpdateRow): (string | number)[] {
   return [
     u.id, u.timestamp, u.original_text, u.source, u.vendor, u.po_id, u.item,

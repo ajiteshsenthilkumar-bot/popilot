@@ -47,6 +47,27 @@ export async function setEta(po_id: string, item: Item, eta: string): Promise<bo
   return true;
 }
 
+export async function addPO(po: PO): Promise<void> {
+  if (useSheet()) return sheets.sheetAddPO(po);
+  mem().pos.push(structuredClone(po));
+}
+
+export async function replacePOs(pos: PO[]): Promise<void> {
+  if (useSheet()) return sheets.sheetReplacePOs(pos);
+  mem().pos = structuredClone(pos);
+}
+
+// Change one cell of a PO (an item's vendor, eta or status). Throws if the PO row isn't there.
+export async function setPOField(po_id: string, item: Item, field: "vendor" | "eta" | "status", value: string): Promise<void> {
+  if (useSheet()) {
+    if (!(await sheets.sheetSetPOField(po_id, item, field, value))) throw new Error(`${po_id} not found in the sheet`);
+    return;
+  }
+  const po = mem().pos.find((p) => p.po_id === po_id);
+  if (!po) throw new Error(`${po_id} not found in the sheet`);
+  (po.inputs[item] as any)[field] = value;
+}
+
 export async function appendUpdate(u: UpdateRow): Promise<void> {
   if (useSheet()) return sheets.sheetAppendUpdate(u);
   mem().updates.push(structuredClone(u));
