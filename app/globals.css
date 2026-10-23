@@ -4,7 +4,6 @@
   --text: #1c2430;
   --muted: #6b7686;
   --line: #e3e7ee;
-  --brand: #3b5bdb;
   --ok: #1f8a4c;
   --ok-bg: #e6f6ed;
   --warn: #b26a00;
@@ -47,13 +46,17 @@ button {
   font: inherit; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line);
   background: #fff; cursor: pointer; color: var(--text);
 }
-button.primary { background: var(--brand); border-color: var(--brand); color: #fff; font-weight: 600; }
-button:disabled { opacity: 0.6; cursor: wait; }
+button.primary { background: var(--ink); border-color: var(--ink); color: #fff; font-weight: 600; }
+button.primary:hover:not(:disabled) { background: var(--ink-hover); border-color: var(--ink-hover); }
+button:disabled { opacity: 0.55; cursor: wait; }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 3px solid var(--focus); outline-offset: 2px;
+}
 button.chip { font-size: 12px; padding: 4px 10px; border-radius: 999px; flex: 0 0 auto; }
 
 .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; flex: 0 0 auto; }
 .seg button { border: 0; border-radius: 0; }
-.seg button.on { background: var(--text); color: #fff; }
+.seg button.on { background: var(--ink); color: #fff; }
 
 .banner { padding: 8px 12px; border-radius: 8px; font-size: 13px; margin-bottom: 12px; }
 .banner.warn { background: var(--warn-bg); color: var(--warn); }

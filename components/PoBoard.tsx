@@ -3,7 +3,7 @@ import { ITEMS, type PO, type RiskResult } from "@/lib/types";
 export function PoBoard({ pos, risks }: { pos: PO[]; risks: RiskResult[] }) {
   return (
     <section className="panel" id="board" tabIndex={-1}>
-      <h2>2 · PO board</h2>
+      <h2>3 · PO board</h2>
       <p className="sub">One PO per product. The slowest open input sets the real ETA.</p>
       <div className="table-wrap">
         <table>

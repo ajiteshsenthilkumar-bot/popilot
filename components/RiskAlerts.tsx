@@ -29,7 +29,7 @@ export function RiskAlerts({ risks, stockInfo, missingSkus = [] }: {
 
   return (
     <section className="panel">
-      <h2>3 · Stock-out risk</h2>
+      <h2>2 · Stock-out risk</h2>
       <p className="sub">Stock ÷ daily sales (last 30 days) compared with the real ETA. {sourceLine}.</p>
 
       {stockInfo?.unavailable && (
