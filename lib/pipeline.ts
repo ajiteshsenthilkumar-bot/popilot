@@ -3,12 +3,26 @@
 // So a failure midway leaves a visible "pending" row, never a silent PO change.
 import { extractProposal } from "./claude";
 import { isValidIso, todayIST } from "./dates";
+import { maybeAlert } from "./alerts";
 import { evaluate } from "./gate";
 import { describeEta } from "./sanitize";
+import { findStock, getStockSnapshot } from "./shopify";
 import { appendUpdate, getPOs, getUpdates, saveUpdate, setEta } from "./store";
-import { ITEMS, type Item, type Proposal, type UpdateRow } from "./types";
+import { ITEMS, type Item, type PO, type Proposal, type UpdateRow } from "./types";
 
 const newId = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+
+// Tell the owner on Telegram if this ETA change creates (or worsens) a stock-out risk.
+// Best effort: a problem here must never undo or hide the PO update that already succeeded.
+async function notifyRisk(poBefore: PO, item: Item, newEta: string): Promise<void> {
+  try {
+    const snap = await getStockSnapshot();
+    const input = poBefore.inputs[item];
+    await maybeAlert({ poBefore, item, newEta, stock: findStock(snap.records, poBefore.sku), vendor: input.vendor, oldEta: input.eta });
+  } catch (e) {
+    console.error("stock-out alert failed:", (e as Error).message);
+  }
+}
 
 export interface ProcessInput {
   text: string;
@@ -88,6 +102,7 @@ export async function processMessage(input: ProcessInput): Promise<UpdateRow | n
     row.reason = `Needs your review: couldn't update the sheet (${(e as Error).message})`;
   }
   await saveUpdate(row);
+  if (row.status === "applied") await notifyRisk(verdict.po, verdict.item, verdict.newEta);
   return row;
 }
 
@@ -130,5 +145,6 @@ export async function confirmUpdate(input: {
   done.status = "confirmed";
   done.reason = "Confirmed by you";
   await saveUpdate(done);
+  await notifyRisk(po, input.item, input.eta);
   return done;
 }
