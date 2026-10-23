@@ -7,7 +7,7 @@ import { maybeAlert } from "./alerts";
 import { evaluate } from "./gate";
 import { describeEta } from "./sanitize";
 import { findStock, getStockSnapshot } from "./shopify";
-import { appendUpdate, getPOs, getUpdates, saveUpdate, setEta } from "./store";
+import { appendUpdate, getPOs, getUpdates, saveUpdate, setAlertState, setEta } from "./store";
 import { ITEMS, type Item, type PO, type Proposal, type UpdateRow } from "./types";
 
 const newId = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -18,7 +18,9 @@ async function notifyRisk(poBefore: PO, item: Item, newEta: string): Promise<voi
   try {
     const snap = await getStockSnapshot();
     const input = poBefore.inputs[item];
-    await maybeAlert({ poBefore, item, newEta, stock: findStock(snap.records, poBefore.sku), vendor: input.vendor, oldEta: input.eta });
+    const out = await maybeAlert({ poBefore, item, newEta, stock: findStock(snap.records, poBefore.sku), vendor: input.vendor, oldEta: input.eta });
+    // remember what the owner now knows, so the daily check doesn't repeat it (and notices if it gets worse later)
+    if (out.assessed && out.changed) await setAlertState(poBefore.po_id, out.gap);
   } catch (e) {
     console.error("stock-out alert failed:", (e as Error).message);
   }

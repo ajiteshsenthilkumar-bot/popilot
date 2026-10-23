@@ -16,9 +16,9 @@ export function seedPOs(today: string = todayIST()): PO[] {
   });
 }
 
-const g = globalThis as unknown as { __popilot?: { pos: PO[]; updates: UpdateRow[] } };
+const g = globalThis as unknown as { __popilot?: { pos: PO[]; updates: UpdateRow[]; alerts: Record<string, number> } };
 function mem() {
-  if (!g.__popilot) g.__popilot = { pos: seedPOs(), updates: [] };
+  if (!g.__popilot) g.__popilot = { pos: seedPOs(), updates: [], alerts: {} };
   return g.__popilot;
 }
 
@@ -54,6 +54,16 @@ export async function appendUpdate(u: UpdateRow): Promise<void> {
 
 export async function getUpdates(): Promise<UpdateRow[]> {
   return useSheet() ? sheets.sheetGetUpdates() : structuredClone(mem().updates);
+}
+
+// What the owner has already been told about each PO's stock-out risk (po_id -> gap in days, 0 = no open risk)
+export async function getAlertState(): Promise<Record<string, number>> {
+  return useSheet() ? sheets.sheetGetAlertState() : { ...mem().alerts };
+}
+
+export async function setAlertState(po_id: string, gap: number): Promise<void> {
+  if (useSheet()) return sheets.sheetSetAlertState(po_id, gap);
+  mem().alerts[po_id] = gap;
 }
 
 export async function saveUpdate(u: UpdateRow): Promise<boolean> {

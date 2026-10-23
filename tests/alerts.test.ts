@@ -6,6 +6,7 @@ vi.mock("@/lib/claude", () => ({ extractProposal: (...a: any[]) => mockExtract(.
 
 import { buildAlertText, maybeAlert, ownerChatIds, shouldAlert } from "@/lib/alerts";
 import { confirmUpdate, processMessage } from "@/lib/pipeline";
+import { getAlertState } from "@/lib/store";
 import { makePO, TODAY } from "./helpers";
 
 const risk = (o: Partial<RiskResult>): RiskResult => ({
@@ -59,33 +60,33 @@ describe("maybeAlert", () => {
   afterEach(() => { delete process.env.TELEGRAM_BOT_TOKEN; delete process.env.TELEGRAM_ALLOWED; });
 
   it("sends one message to each owner when a delay creates a stock-out risk", async () => {
-    expect(await maybeAlert(base(), send)).toBe(true);
+    expect((await maybeAlert(base(), send)).sent).toBe(true);
     expect(send).toHaveBeenCalledTimes(1);
     expect(send.mock.calls[0][1]).toBe("111111111"); // the owner, not the vendor 222222222
     expect(send.mock.calls[0][2]).toMatch(/runs out in 4 days; label now arrives in 7 → 3-day stock-out risk/);
   });
 
   it("stays quiet when the new ETA is still inside the stock runway", async () => {
-    expect(await maybeAlert({ ...base(), newEta: "2026-10-25" }, send)).toBe(false);
+    expect((await maybeAlert({ ...base(), newEta: "2026-10-25" }, send)).sent).toBe(false);
     expect(send).not.toHaveBeenCalled();
   });
 
   it("stays quiet when there is no Shopify data for the SKU, no token, or no owner", async () => {
-    expect(await maybeAlert({ ...base(), stock: undefined }, send)).toBe(false);
+    expect((await maybeAlert({ ...base(), stock: undefined }, send)).sent).toBe(false);
     delete process.env.TELEGRAM_BOT_TOKEN;
-    expect(await maybeAlert(base(), send)).toBe(false);
+    expect((await maybeAlert(base(), send)).sent).toBe(false);
     process.env.TELEGRAM_BOT_TOKEN = "123:ABC";
     process.env.TELEGRAM_ALLOWED = "222222222=Rajesh Labels";
-    expect(await maybeAlert(base(), send)).toBe(false);
+    expect((await maybeAlert(base(), send)).sent).toBe(false);
     expect(send).not.toHaveBeenCalled();
   });
 
   it("does not repeat for an unchanged risk but does warn when it gets worse", async () => {
     const already = makePO();
     already.inputs.label.eta = "2026-10-29"; // already 7 days away -> already at risk
-    expect(await maybeAlert({ ...base(), poBefore: already, newEta: "2026-10-29" }, send)).toBe(false); // same
-    expect(await maybeAlert({ ...base(), poBefore: already, newEta: "2026-11-02" }, send)).toBe(true); // worse
-    expect(await maybeAlert({ ...base(), poBefore: already, newEta: "2026-10-27" }, send)).toBe(false); // better
+    expect((await maybeAlert({ ...base(), poBefore: already, newEta: "2026-10-29" }, send)).sent).toBe(false); // same
+    expect((await maybeAlert({ ...base(), poBefore: already, newEta: "2026-11-02" }, send)).sent).toBe(true); // worse
+    expect((await maybeAlert({ ...base(), poBefore: already, newEta: "2026-10-27" }, send)).sent).toBe(false); // better
     expect(send).toHaveBeenCalledTimes(1);
   });
 
@@ -123,6 +124,16 @@ describe("alert through the pipeline", () => {
     expect(sent[0].url).toBe("https://api.telegram.org/bot123:ABC/sendMessage");
     expect(sent[0].body.chat_id).toBe("111111111");
     expect(sent[0].body.text).toContain("3-day stock-out risk. Reorder or slow ads?");
+    expect(await getAlertState()).toEqual({ "PO-101": 3 }); // remembered, so the daily check won't repeat it
+  });
+
+  it("records a cleared risk as 0 so a later relapse alerts again", async () => {
+    mockExtract.mockResolvedValue(delay);
+    await processMessage({ text: "labels 7 din", source: "text" }); // risk appears (gap 3)
+    mockExtract.mockResolvedValue({ ...delay, eta_expression: { type: "relative_days", value: 2 } });
+    await processMessage({ text: "labels 2 din", source: "text" }); // delivered sooner: risk gone
+    expect(sent).toHaveLength(1); // no alert for good news
+    expect(await getAlertState()).toEqual({ "PO-101": 0 });
   });
 
   it("does not alert for a bad-input message that changes nothing", async () => {

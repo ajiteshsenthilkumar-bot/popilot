@@ -25,6 +25,8 @@ async function main() {
   if (process.argv.includes("--clear-log")) {
     await sheets.sheetClearUpdates();
     console.log("Cleared the Updates log.");
+    await sheets.sheetClearAlertState();
+    console.log("Cleared the Alerts memory (so stock-out alerts can fire again).");
   } else {
     console.log("The Updates log was kept. Add --clear-log to wipe it too: npm run seed -- --clear-log");
   }

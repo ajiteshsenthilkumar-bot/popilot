@@ -1,7 +1,8 @@
 // Checks the sheet layer against a fake bridge (no network, no Google).
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  sheetAppendUpdate, sheetGetPOs, sheetGetUpdates, sheetReplacePOs, sheetSaveUpdate, sheetSetEta, sheetsConfigured,
+  sheetAppendUpdate, sheetClearAlertState, sheetGetAlertState, sheetGetPOs, sheetGetUpdates, sheetReplacePOs, sheetSaveUpdate,
+  sheetSetAlertState, sheetSetEta, sheetsConfigured,
 } from "@/lib/sheets";
 import { makePO } from "./helpers";
 import type { UpdateRow } from "@/lib/types";
@@ -76,6 +77,16 @@ describe("sheet bridge layer", () => {
     expect(u.old_eta).toBe("2026-10-25");
     expect(u.confidence).toBe(0.9);
     expect(await sheetSaveUpdate({ ...update, id: "missing" })).toBe(false);
+  });
+
+  it("remembers what the owner was told per PO (add, update, read back)", async () => {
+    await sheetSetAlertState("PO-101", 3);
+    await sheetSetAlertState("PO-102", 1);
+    await sheetSetAlertState("PO-101", 0); // risk cleared: updates the same row, no duplicate
+    expect(await sheetGetAlertState()).toEqual({ "PO-101": 0, "PO-102": 1 });
+    expect(tabs["Alerts"]).toHaveLength(2);
+    await sheetClearAlertState();
+    expect(await sheetGetAlertState()).toEqual({});
   });
 
   it("sends the token on every request and rejects a wrong one", async () => {

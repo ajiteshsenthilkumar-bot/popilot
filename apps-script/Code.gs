@@ -1,9 +1,9 @@
 // POPilot sheet bridge. Paste this into a new Apps Script project (script.google.com)
 // owned by the same Google account as the POPilot sheet, then Deploy -> New deployment -> Web app
 // (Execute as: Me, Who has access: Anyone). Every request must carry the secret TOKEN.
-// This script can only touch the two tabs below.
+// This script can only touch the three tabs below.
 
-var TABS = ['POs', 'Updates'];
+var TABS = ['POs', 'Updates', 'Alerts'];
 // The POPilot spreadsheet this script reads and writes (the ID from its URL, not a secret).
 var SHEET_ID = '1Tiro3NnOfuCBbHASinFjKruTBg4WkhNpQx8e9ij1IdY';
 

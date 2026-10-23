@@ -5,6 +5,7 @@ import { ITEMS, type Item, type PO, type UpdateRow } from "./types";
 
 export const PO_TAB = "POs";
 export const UPDATES_TAB = "Updates";
+export const ALERTS_TAB = "Alerts";
 
 export const PO_HEADERS = [
   "po_id", "sku", "product", "qty",
@@ -15,6 +16,8 @@ export const UPDATE_HEADERS = [
   "id", "timestamp", "original_text", "source", "vendor", "po_id", "item",
   "eta_expression", "old_eta", "new_eta", "confidence", "status", "reason",
 ];
+
+export const ALERT_HEADERS = ["po_id", "alerted_gap", "alerted_at"];
 
 export function sheetsConfigured(): boolean {
   return Boolean(process.env.SHEETS_BRIDGE_URL && process.env.SHEETS_BRIDGE_TOKEN);
@@ -60,7 +63,7 @@ async function call(action: string, payload: Record<string, unknown> = {}): Prom
 
 // Create the two tabs and header rows if they don't exist yet.
 export async function ensureTabs(): Promise<void> {
-  await call("ensure", { headers: { [PO_TAB]: PO_HEADERS, [UPDATES_TAB]: UPDATE_HEADERS } });
+  await call("ensure", { headers: { [PO_TAB]: PO_HEADERS, [UPDATES_TAB]: UPDATE_HEADERS, [ALERTS_TAB]: ALERT_HEADERS } });
 }
 
 function poToRow(po: PO): (string | number)[] {
@@ -122,6 +125,24 @@ export async function sheetAppendUpdate(u: UpdateRow): Promise<void> {
 export async function sheetGetUpdates(): Promise<UpdateRow[]> {
   const { values } = await call("read", { tab: UPDATES_TAB });
   return (values as string[][]).filter((r) => r[0]).map(rowToUpdate);
+}
+
+// What the owner has already been told: po_id -> gap (days without stock) at the last alert. 0 = no open risk.
+export async function sheetGetAlertState(): Promise<Record<string, number>> {
+  const { values } = await call("read", { tab: ALERTS_TAB });
+  const out: Record<string, number> = {};
+  for (const r of values as string[][]) if (r[0]) out[r[0]] = Number(r[1]) || 0;
+  return out;
+}
+
+export async function sheetSetAlertState(po_id: string, gap: number): Promise<void> {
+  const row = [po_id, gap, new Date().toISOString()];
+  const { found } = await call("replaceRow", { tab: ALERTS_TAB, key: po_id, row });
+  if (!found) await call("append", { tab: ALERTS_TAB, row });
+}
+
+export async function sheetClearAlertState(): Promise<void> {
+  await call("replace", { tab: ALERTS_TAB, rows: [] });
 }
 
 // Wipe the message log (header row stays). Used only by `npm run seed -- --clear-log`.

@@ -59,7 +59,7 @@ POPilot reads **stock per SKU** and **units sold in the last 30 days** from Shop
 
 ## Stock-out alert on Telegram
 
-When a PO update creates a stock-out risk (or makes it worse), the bot messages **you** (the id marked `=*` in `TELEGRAM_ALLOWED`) once, with the same wording as the screen. Same, better or cleared risk stays silent. It never messages vendors. It reacts to PO changes, not to stock changes on their own.
+When a PO update creates a stock-out risk (or makes it worse), the bot messages **you** (the id marked `=*` in `TELEGRAM_ALLOWED`) once, with the same wording as the screen. Same, better or cleared risk stays silent. It never messages vendors. It reacts to PO changes. A **daily stock check** (09:00 IST, `vercel.json` cron -> `/api/cron/stock-check`, protected by `CRON_SECRET`) catches risks caused by stock or sales changing on their own: it re-checks every PO against fresh Shopify numbers and messages you about any risk that is **new or worse** than what you were last told (remembered per PO in the sheet's `Alerts` tab). Same or better risk stays silent, and if the check itself breaks you get a message saying so. `npm run seed -- --clear-log` also clears that memory.
 
 ## Live messages: Telegram (quick, free)
 
