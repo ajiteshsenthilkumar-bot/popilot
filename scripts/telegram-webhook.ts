@@ -50,7 +50,7 @@ async function main() {
   const r = await tg("setWebhook", {
     url: `${site}/api/telegram`,
     secret_token: secret,
-    allowed_updates: ["message"],
+    allowed_updates: ["message", "edited_message"], // edits too, so a corrected message replaces the first version
     drop_pending_updates: true,
   });
   console.log(r.ok ? `Webhook set: ${site}/api/telegram` : `Failed: ${r.description}`);

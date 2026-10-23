@@ -25,6 +25,7 @@ beforeEach(() => {
     download: vi.fn(async () => ({ bytes: Buffer.from([1, 2, 3]), mime: "audio/ogg; codecs=opus" })),
     knownIds: vi.fn(async () => new Set<string>()),
     logReview: vi.fn(async (r: UpdateRow) => { logged.push(r); }),
+    revertEdited: vi.fn(async () => ({ reverted: [] as string[], blocked: [] as string[] })),
   };
 });
 
@@ -135,6 +136,55 @@ describe("WhatsApp inbound handling", () => {
     (deps.process as any).mockResolvedValue(row({ status: "needs_review" }));
     const s = await handleInbound([msg({})], ALLOWED, deps);
     expect(s).toMatchObject({ needsReview: 1, applied: 0 });
+  });
+});
+
+describe("edited messages", () => {
+  const edit = (o: Partial<InboundMessage> = {}): InboundMessage =>
+    msg({ channel: "telegram", id: "987654321_55", from: "919812345678", editedAt: 1761234567, text: "PO 105: labels Monday tak nahi aayenge", ...o });
+
+  it("undoes the earlier version first, then reads the corrected text under its own id, with a note", async () => {
+    (deps.revertEdited as any).mockResolvedValue({ reverted: ["PO-101 label"], blocked: [] });
+    const s = await handleInbound([edit()], ALLOWED, deps);
+    expect(deps.revertEdited).toHaveBeenCalledWith("tg_987654321_55");
+    const call = (deps.process as any).mock.calls[0][0];
+    expect(call.id).toBe("tg_987654321_55_e1761234567");
+    expect(call.text).toBe("PO 105: labels Monday tak nahi aayenge");
+    expect(call.note).toContain("earlier change (PO-101 label) was undone first");
+    expect(s.processed).toBe(1);
+  });
+
+  it("an edit of a message that did nothing earlier needs no note", async () => {
+    await handleInbound([edit()], ALLOWED, deps);
+    expect((deps.process as any).mock.calls[0][0].note).toBeUndefined();
+  });
+
+  it("says so when the earlier change could not be undone safely", async () => {
+    (deps.revertEdited as any).mockResolvedValue({ reverted: [], blocked: ["PO-101 label is now 2026-11-02, not 2026-10-26, so it was changed again."] });
+    await handleInbound([edit()], ALLOWED, deps);
+    expect((deps.process as any).mock.calls[0][0].note).toContain("could not be undone automatically");
+  });
+
+  it("handles the same edit only once", async () => {
+    (deps.knownIds as any).mockResolvedValue(new Set(["tg_987654321_55_e1761234567"]));
+    const s = await handleInbound([edit()], ALLOWED, deps);
+    expect(s.duplicates).toBe(1);
+    expect(deps.revertEdited).not.toHaveBeenCalled();
+  });
+
+  it("if the corrected text leads nowhere, it still leaves a trace of what was undone", async () => {
+    (deps.revertEdited as any).mockResolvedValue({ reverted: ["PO-101 label"], blocked: [] });
+    (deps.process as any).mockResolvedValue(null); // the AI says it is not about supply
+    await handleInbound([edit({ text: "sorry bhaiya wrong chat, Diwali ki shubhkamnayein" })], ALLOWED, deps);
+    expect(logged).toHaveLength(1);
+    expect(logged[0]).toMatchObject({ status: "reverted", id: "tg_987654321_55_e1761234567" });
+    expect(logged[0].reason).toContain("was undone first");
+  });
+
+  it("an edit from someone not on the allow-list is dropped like any other message", async () => {
+    const s = await handleInbound([edit({ from: "919999999999" })], ALLOWED, deps);
+    expect(s.notAllowed).toBe(1);
+    expect(deps.revertEdited).not.toHaveBeenCalled();
   });
 });
 

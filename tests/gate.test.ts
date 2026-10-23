@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { evaluate } from "@/lib/gate";
+import { evaluate, mentionedPoNumbers } from "@/lib/gate";
 import type { Proposal } from "@/lib/types";
 import { makePO, TODAY } from "./helpers";
 
@@ -17,6 +17,38 @@ const reject = (p: Proposal, pos = [makePO()]) => {
   expect(r.ok).toBe(false);
   return r.ok ? "" : r.reason;
 };
+
+describe("a PO named in the message", () => {
+  const run = (p: Proposal, text: string) => evaluate(p, [makePO()], TODAY, undefined, text);
+
+  it("finds numbers however they are written", () => {
+    expect(mentionedPoNumbers("hi, PO 105 rajesh labels")).toEqual(["105"]);
+    expect(mentionedPoNumbers("po-105 and PO#0106")).toEqual(["105", "106"]);
+    expect(mentionedPoNumbers("apno 3 din mein, labels Monday")).toEqual([]); // 'apno' is not 'PO'
+    expect(mentionedPoNumbers("popular item, 5 din")).toEqual([]);
+  });
+
+  it("refuses a PO that is not in the sheet, and says how to fix it", () => {
+    const r = run(good, "PO 105 rajesh labels se bol raha hoon, labels Monday");
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.reason).toMatch(/No PO called PO-105 in your sheet.*Add it to the POs tab/);
+  });
+
+  it("refuses when the AI matched a different PO than the one named", () => {
+    const r = run({ ...good, po_id: "PO-101" }, "PO 102 labels Monday tak");
+    expect(r.ok).toBe(false); // PO-102 is not in this one-PO list: caught as 'no PO called'
+    const two = [makePO(), makePO({ po_id: "PO-102" })];
+    const r2 = evaluate({ ...good, po_id: "PO-101" }, two, TODAY, undefined, "PO 102 labels Monday tak");
+    expect(r2.ok).toBe(false);
+    if (!r2.ok) expect(r2.reason).toMatch(/names PO-102 but was matched to PO-101/);
+  });
+
+  it("accepts when the named PO is the matched PO, or when no PO is named", () => {
+    expect(run(good, "PO 101 labels Monday tak").ok).toBe(true);
+    expect(run(good, "labels Monday tak nahi aayenge").ok).toBe(true);
+    expect(evaluate(good, [makePO()], TODAY).ok).toBe(true); // callers that pass no text behave as before
+  });
+});
 
 describe("gate", () => {
   it("accepts a clear message that matches an open PO", () => {

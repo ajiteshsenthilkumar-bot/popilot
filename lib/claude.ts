@@ -43,7 +43,7 @@ Reply with ONE JSON object and nothing else, with exactly these keys:
     "box Friday se pehle nahi mil payenge" -> item packaging, eta {"type":"weekday","value":"friday"}
     "maal 5 din aur lagega" -> item manufacturer, eta {"type":"relative_days","value":5}
   A day word in a delay message is the new arrival day, not a deadline that is being missed.
-- po_id: pick from the list of open POs given to you, using the vendor and item. null if no PO clearly fits.
+- po_id: pick from the list of open POs given to you, using the vendor and item. null if no PO clearly fits. If the message itself names a PO number (for example "PO 105"), use exactly that PO if it is in the list; if it is NOT in the list, set po_id to null. Never switch to a different PO just because the vendor matches.
 - confidence: High (above 0.85) only when vendor, item, date and PO are all clear. Use below 0.3 for gibberish or off-topic text.
 - reason: one short sentence in English explaining what you understood or what is missing.
 

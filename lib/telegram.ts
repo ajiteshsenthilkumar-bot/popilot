@@ -11,9 +11,13 @@ export function verifySecret(header: string | null, secret: string): boolean {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-// Pull the message out of one Telegram "update". Bots' own messages, edits and channel posts are ignored.
+// Pull the message out of one Telegram "update". Bots' own messages and channel posts are ignored.
+// An EDITED text message is returned too (with editedAt set), so POPilot can undo what the first version did and
+// read the corrected text. Edited voice notes (e.g. a caption change) are ignored: nothing new to transcribe.
 export function extractTelegramMessages(update: any): InboundMessage[] {
-  const m = update?.message;
+  const edited = !update?.message && update?.edited_message ? update.edited_message : null;
+  const m = update?.message ?? edited;
+  if (edited && typeof edited.text !== "string") return [];
   if (!m?.message_id || m.chat?.id === undefined || m.from?.id === undefined || m.from?.is_bot) return [];
   const isGroup = m.chat.type === "group" || m.chat.type === "supergroup";
   const voice = m.voice ?? m.audio;
@@ -28,6 +32,7 @@ export function extractTelegramMessages(update: any): InboundMessage[] {
       mediaId: voice?.file_id,
       mime: voice?.mime_type ?? (m.voice ? "audio/ogg" : undefined),
       forwarded: Boolean(m.forward_origin || m.forward_date || m.forward_from || m.forward_from_chat),
+      editedAt: edited ? Number(edited.edit_date) || Math.floor(Date.now() / 1000) : undefined,
     },
   ];
 }

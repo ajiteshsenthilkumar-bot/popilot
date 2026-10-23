@@ -34,9 +34,15 @@ describe("extractTelegramMessages", () => {
     expect(m).toMatchObject({ groupId: "-1001234", forwarded: true, id: "-1001234_55" });
   });
 
-  it("ignores bots, edits, channel posts and photos' text", () => {
+  it("reads an EDITED text message (with its edit time) and ignores edited voice notes", () => {
+    const [m] = extractTelegramMessages({ edited_message: { ...base, text: "PO 105 labels Monday", edit_date: 1761234567 } });
+    expect(m).toMatchObject({ id: "987654321_55", type: "text", text: "PO 105 labels Monday", editedAt: 1761234567 });
+    expect(extractTelegramMessages({ message: { ...base, text: "first" } })[0].editedAt).toBeUndefined();
+    expect(extractTelegramMessages({ edited_message: { ...base, voice: { file_id: "F" }, edit_date: 1 } })).toEqual([]);
+  });
+
+  it("ignores bots, channel posts and photos' text", () => {
     expect(extractTelegramMessages({ message: { ...base, from: { id: 1, is_bot: true }, text: "x" } })).toEqual([]);
-    expect(extractTelegramMessages({ edited_message: { ...base, text: "x" } })).toEqual([]);
     expect(extractTelegramMessages({ channel_post: { ...base, text: "x" } })).toEqual([]);
     expect(extractTelegramMessages(null)).toEqual([]);
     expect(extractTelegramMessages({ message: { ...base, photo: [{}] } })[0].type).toBe("other");
@@ -121,9 +127,9 @@ describe("telegram webhook route", () => {
     expect(allow).toEqual([{ key: "987654321", vendor: "Rajesh Labels" }]);
   });
 
-  it("answers 200 and does nothing for updates with no message (edits, etc.)", async () => {
+  it("answers 200 and does nothing for updates with no message (other event types)", async () => {
     const { POST } = await load();
-    const r = await POST(post(JSON.stringify({ update_id: 2, edited_message: { ...base, text: "x" } }), "hook_secret-1"));
+    const r = await POST(post(JSON.stringify({ update_id: 2, my_chat_member: { chat: base.chat } }), "hook_secret-1"));
     expect(r.status).toBe(200);
     expect(inboundMock).not.toHaveBeenCalled();
   });

@@ -11,6 +11,7 @@ export interface InboundMessage {
   mediaId?: string; // file id to download a voice note
   mime?: string;
   forwarded: boolean;
+  editedAt?: number; // set when the sender EDITED an earlier message (unix seconds); `id` is still the original message's id
 }
 
 // prefix for the log row id, so a re-delivered message is recognised and the screen can show where it came from

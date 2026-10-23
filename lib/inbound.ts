@@ -7,7 +7,7 @@
 //   6. otherwise the normal pipeline: safety gate -> PO update or "needs your review"
 import { matchSender, parseAllowList, type AllowEntry } from "./allowlist";
 import { ID_PREFIX, type InboundMessage } from "./channels";
-import { processMessage, type ProcessInput } from "./pipeline";
+import { processMessage, revertMessageEffects, type ProcessInput } from "./pipeline";
 import { isTrivial } from "./relevance";
 import { appendUpdate, getUpdates } from "./store";
 import { downloadTelegramFile } from "./telegram";
@@ -32,6 +32,8 @@ export interface InboundDeps {
   download: (m: InboundMessage) => Promise<{ bytes: Buffer; mime: string }>;
   knownIds: () => Promise<Set<string>>;
   logReview: (row: UpdateRow) => Promise<void>;
+  // an edited message: undo what its earlier version(s) did
+  revertEdited: (baseId: string) => Promise<{ reverted: string[]; blocked: string[] }>;
 }
 
 // Message ids being worked on right now. A chat app can deliver the same message twice within a moment,
@@ -57,6 +59,7 @@ const defaultDeps: InboundDeps = {
   download: defaultDownload,
   knownIds: async () => new Set((await getUpdates()).map((u) => u.id)),
   logReview: appendUpdate,
+  revertEdited: revertMessageEffects,
 };
 
 function reviewRow(id: string, original: string, source: "text" | "voice", vendor: string, reason: string): UpdateRow {
@@ -91,7 +94,9 @@ export async function handleInbound(
   for (const m of candidates) {
     const match = matchSender(list, m.from, m.groupId);
     if (!match.allowed) continue;
-    const id = `${ID_PREFIX[m.channel]}${m.id}`;
+    // an edit gets its own id (original id + edit time), so each version of a message is handled once
+    const baseId = `${ID_PREFIX[m.channel]}${m.id}`;
+    const id = m.editedAt ? `${baseId}_e${m.editedAt}` : baseId;
     if (known.has(id) || inFlight.has(id)) { s.duplicates++; continue; }
     inFlight.add(id);
 
@@ -118,10 +123,27 @@ export async function handleInbound(
         continue;
       }
 
-      if (isTrivial(text)) { s.irrelevant++; continue; }
+      // The sender corrected an earlier message: first undo what the old version did (only if that is still safe).
+      let note: string | undefined;
+      if (m.editedAt) {
+        const rev = await deps.revertEdited(baseId);
+        note = [
+          rev.reverted.length ? `Edited message: the earlier change (${rev.reverted.join(", ")}) was undone first.` : "",
+          rev.blocked.length ? `Edited message: an earlier change could not be undone automatically (${rev.blocked.join(" ")})` : "",
+        ].filter(Boolean).join(" ") || undefined;
+      }
+      // if the corrected text leads nowhere, still leave a trace saying what was undone
+      const traceIfDropped = async () => {
+        if (note) {
+          await deps.logReview({ ...reviewRow(id, text, "text", match.vendor ?? "", note), status: "reverted", reason: `${note} The corrected text isn't about supply status, so nothing else changed.` });
+          known.add(id);
+        }
+      };
 
-      const row = await deps.process({ text, source, sender: match.vendor ?? undefined, id, dropIrrelevant: true });
-      if (!row) { s.irrelevant++; continue; }
+      if (isTrivial(text)) { await traceIfDropped(); s.irrelevant++; continue; }
+
+      const row = await deps.process({ text, source, sender: match.vendor ?? undefined, id, dropIrrelevant: true, note });
+      if (!row) { await traceIfDropped(); s.irrelevant++; continue; }
       known.add(id);
       s.processed++;
       if (row.status === "applied" || row.status === "confirmed") s.applied++;

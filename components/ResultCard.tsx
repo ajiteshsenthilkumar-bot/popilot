@@ -9,6 +9,7 @@ const LABEL: Record<UpdateRow["status"], { text: string; cls: string }> = {
   applied: { text: "PO updated", cls: "ok" },
   confirmed: { text: "Confirmed by you", cls: "ok" },
   needs_review: { text: "Needs your review", cls: "warn" },
+  reverted: { text: "Undone", cls: "grey" },
 };
 
 export function ResultCard({ u, pos, onDone }: { u: UpdateRow; pos: PO[]; onDone: () => void }) {
@@ -34,6 +35,22 @@ export function ResultCard({ u, pos, onDone }: { u: UpdateRow; pos: PO[]; onDone
     const data = await res.json();
     setBusy(false);
     if (!res.ok) return setErr(data.error ?? "Couldn't confirm");
+    onDone();
+  }
+
+  // Put the PO's date back. The server refuses (and says why) if the date was changed again since.
+  async function undo() {
+    if (busy) return;
+    setBusy(true);
+    setErr("");
+    const res = await fetch("/api/undo", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: u.id }),
+    });
+    const data = await res.json();
+    setBusy(false);
+    if (!res.ok) return setErr(data.error ?? "Couldn't undo");
     onDone();
   }
 
@@ -64,6 +81,13 @@ export function ResultCard({ u, pos, onDone }: { u: UpdateRow; pos: PO[]; onDone
         </dd>
       </dl>
       {u.reason && <div className="sub2">{u.reason}</div>}
+
+      {(u.status === "applied" || u.status === "confirmed") && (
+        <div style={{ marginTop: 8 }}>
+          <button onClick={undo} disabled={busy}>{busy ? "Undoing…" : "Undo this change"}</button>
+          {err && <div className="banner bad" style={{ marginTop: 8 }}>{err}</div>}
+        </div>
+      )}
 
       {u.status === "needs_review" && (
         <div className="confirm">

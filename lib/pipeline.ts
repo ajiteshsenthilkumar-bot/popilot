@@ -3,8 +3,9 @@
 // So a failure midway leaves a visible "pending" row, never a silent PO change.
 import { extractProposal } from "./claude";
 import { isValidIso, todayIST } from "./dates";
-import { maybeAlert } from "./alerts";
+import { maybeAlert, riskGap } from "./alerts";
 import { evaluate } from "./gate";
+import { assessRisk } from "./risk";
 import { describeEta } from "./sanitize";
 import { findStock, getStockSnapshot } from "./shopify";
 import { appendUpdate, getPOs, getUpdates, saveUpdate, setAlertState, setEta } from "./store";
@@ -34,6 +35,8 @@ export interface ProcessInput {
   id?: string;
   // Live feeds only: if the AI says the message isn't about supply status, drop it and store nothing.
   dropIrrelevant?: boolean;
+  // Shown on the card: e.g. "Edited message: the earlier change (PO-101 label) was undone first."
+  note?: string;
 }
 
 export async function processMessage(input: ProcessInput & { dropIrrelevant: true }): Promise<UpdateRow | null>;
@@ -41,6 +44,7 @@ export async function processMessage(input: ProcessInput): Promise<UpdateRow>;
 export async function processMessage(input: ProcessInput): Promise<UpdateRow | null> {
   const today = todayIST();
   const pos = await getPOs();
+  const withNote = (r: string) => (input.note ? `${r} ${input.note}` : r);
 
   const row: UpdateRow = {
     id: input.id ?? newId(),
@@ -63,7 +67,7 @@ export async function processMessage(input: ProcessInput): Promise<UpdateRow | n
     proposal = await extractProposal({ text: input.text, source: input.source, sender: input.sender, today, openPOs: pos });
   } catch (e) {
     // If the AI is down we change nothing and ask the human.
-    row.reason = `Needs your review: couldn't read this message (${(e as Error).message})`;
+    row.reason = withNote(`Needs your review: couldn't read this message (${(e as Error).message})`);
     await appendUpdate(row);
     return row;
   }
@@ -81,12 +85,12 @@ export async function processMessage(input: ProcessInput): Promise<UpdateRow | n
   const guessPo = pos.find((p) => p.po_id === proposal!.po_id);
   if (guessPo && proposal.item) row.old_eta = guessPo.inputs[proposal.item].eta;
 
-  const verdict = evaluate(proposal, pos, today);
+  const verdict = evaluate(proposal, pos, today, undefined, input.text);
   row.new_eta = verdict.newEta ?? "";
 
   if (!verdict.ok) {
     row.status = "needs_review";
-    row.reason = `Needs your review: ${verdict.reason}`;
+    row.reason = withNote(`Needs your review: ${verdict.reason}`);
     await appendUpdate(row);
     return row;
   }
@@ -98,14 +102,82 @@ export async function processMessage(input: ProcessInput): Promise<UpdateRow | n
   try {
     const changed = await setEta(verdict.po.po_id, verdict.item, verdict.newEta);
     row.status = changed ? "applied" : "needs_review";
-    row.reason = changed ? proposal.reason : "Needs your review: PO row not found in the sheet";
+    row.reason = withNote(changed ? proposal.reason : "Needs your review: PO row not found in the sheet");
   } catch (e) {
     row.status = "needs_review";
-    row.reason = `Needs your review: couldn't update the sheet (${(e as Error).message})`;
+    row.reason = withNote(`Needs your review: couldn't update the sheet (${(e as Error).message})`);
   }
   await saveUpdate(row);
   if (row.status === "applied") await notifyRisk(verdict.po, verdict.item, verdict.newEta);
   return row;
+}
+
+// ---- Undo: put an applied update's date back, but only when that is safe ----
+
+// After an undo the risk may be different: remember what the owner should now consider "already told".
+async function syncAlertMemory(poBefore: PO, item: Item, eta: string): Promise<void> {
+  try {
+    const snap = await getStockSnapshot();
+    const stock = findStock(snap.records, poBefore.sku);
+    if (!stock) return;
+    const po: PO = structuredClone(poBefore);
+    po.inputs[item].eta = eta;
+    await setAlertState(po.po_id, riskGap(assessRisk(po, stock, todayIST())));
+  } catch (e) {
+    console.error("alert memory sync failed:", (e as Error).message);
+  }
+}
+
+export interface RevertResult { ok: boolean; reason?: string; row?: UpdateRow }
+
+// Restores the date this update replaced. Refuses (and explains) unless the PO still holds exactly the date this
+// update wrote, so we never overwrite a newer change by accident.
+async function revertRow(row: UpdateRow): Promise<RevertResult> {
+  if (row.status !== "applied" && row.status !== "confirmed") return { ok: false, reason: "That update isn't applied, so there is nothing to undo." };
+  const item = row.item as Item;
+  if (!ITEMS.includes(item)) return { ok: false, reason: "That update has no item recorded." };
+  const po = (await getPOs()).find((p) => p.po_id === row.po_id);
+  if (!po) return { ok: false, reason: `${row.po_id} is no longer in the sheet.` };
+  const current = po.inputs[item].eta;
+  if (current !== row.new_eta) {
+    return { ok: false, reason: `${row.po_id} ${item} is now ${current || "empty"}, not ${row.new_eta}, so it was changed again after this update. Check it by hand.` };
+  }
+  if (!isValidIso(row.old_eta)) return { ok: false, reason: "No earlier date was recorded for this update, so it can't be restored automatically." };
+
+  await saveUpdate({ ...row, status: "pending", reason: "Undoing…" }); // log first, like every other change
+  try {
+    if (!(await setEta(po.po_id, item, row.old_eta))) throw new Error("PO row not found in the sheet");
+  } catch (e) {
+    await saveUpdate(row); // nothing changed: put the log row back as it was
+    return { ok: false, reason: `Couldn't update the sheet (${(e as Error).message})` };
+  }
+  const reverted: UpdateRow = { ...row, status: "reverted", reason: `Undone: ${row.po_id} ${item} is back to ${row.old_eta}.` };
+  await saveUpdate(reverted);
+  await syncAlertMemory(po, item, row.old_eta);
+  return { ok: true, row: reverted };
+}
+
+// The Undo button.
+export async function undoUpdate(id: string): Promise<UpdateRow> {
+  const row = (await getUpdates()).find((u) => u.id === id);
+  if (!row) throw new Error("That message was not found");
+  const r = await revertRow(row);
+  if (!r.ok || !r.row) throw new Error(r.reason ?? "Couldn't undo that");
+  return r.row;
+}
+
+// A message was edited in the chat: undo what its earlier version(s) did, newest first.
+export async function revertMessageEffects(baseId: string): Promise<{ reverted: string[]; blocked: string[] }> {
+  const rows = (await getUpdates())
+    .filter((u) => (u.id === baseId || u.id.startsWith(`${baseId}_e`)) && (u.status === "applied" || u.status === "confirmed"))
+    .sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+  const out = { reverted: [] as string[], blocked: [] as string[] };
+  for (const r of rows) {
+    const res = await revertRow(r);
+    if (res.ok) out.reverted.push(`${r.po_id} ${r.item}`);
+    else out.blocked.push(res.reason ?? "it couldn't be undone");
+  }
+  return out;
 }
 
 // One-tap confirm by the human. The person picks/approves the PO, item and date.

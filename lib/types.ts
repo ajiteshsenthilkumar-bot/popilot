@@ -42,7 +42,8 @@ export interface Proposal {
 }
 
 // "pending" = logged but the PO write hasn't finished (or failed midway): visible, never silent.
-export type UpdateStatus = "applied" | "needs_review" | "confirmed" | "pending";
+// "reverted" = it was applied, then undone (by the Undo button, or because the message was edited).
+export type UpdateStatus = "applied" | "needs_review" | "confirmed" | "pending" | "reverted";
 
 export interface UpdateRow {
   id: string;
