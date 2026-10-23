@@ -48,6 +48,19 @@ Use the sample chips in the parser panel.
 
 Automated checks (no API key needed, Claude is faked): `npm test`.
 
+## Shopify (read-only stock and sales)
+
+POPilot reads **stock per SKU** and **units sold in the last 30 days** from Shopify (daily sales = units / 30) and never writes to your store. Without Shopify settings it shows labelled **sample data**; if Shopify is connected but fails, the screen says so instead of quietly using sample numbers.
+
+- **Setup:** create an app in the Shopify **Dev Dashboard**, give it only these access scopes: `read_products, read_inventory, read_locations, read_orders`. Choose **Custom distribution** for your store, install it, then put `SHOPIFY_STORE` (e.g. `popilot-test.myshopify.com`), `SHOPIFY_CLIENT_ID` and `SHOPIFY_CLIENT_SECRET` in `.env.local` and Vercel. The app and the store must be in the same Shopify organization. Tokens last 24 hours and refresh automatically.
+- **Check it:** `npm run shopify:check` prints SKU, stock, daily sales and days left, and whether each PO's `sku` matches a Shopify SKU.
+- **Test store only:** `npm run shopify:seed-test-store` fills a development store with the four demo products and 10 backdated test orders. It needs temporary **write** scopes (`write_products, write_inventory, write_orders`); release an app version with them, run it, then release a read-only version again.
+- Each PO's `sku` in the sheet must equal the Shopify SKU (case and spaces are ignored).
+
+## Stock-out alert on Telegram
+
+When a PO update creates a stock-out risk (or makes it worse), the bot messages **you** (the id marked `=*` in `TELEGRAM_ALLOWED`) once, with the same wording as the screen. Same, better or cleared risk stays silent. It never messages vendors. It reacts to PO changes, not to stock changes on their own.
+
 ## Live messages: Telegram (quick, free)
 
 A Telegram bot is the fastest way to get live vendor updates. The bot only ever sees chats that contain it: a person messages it directly, or you add it to a vendor group. It **never replies** to anyone. Only people and groups on your allow-list (`TELEGRAM_ALLOWED`) are read; everyone else is dropped before any AI sees the message and nothing about them is stored. Messages are handled exactly like WhatsApp ones: voice notes are transcribed (only the transcript is kept), chit-chat and anything not about supply status is dropped, then the safety gate decides between a PO update and "needs your review".
