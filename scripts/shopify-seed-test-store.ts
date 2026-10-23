@@ -33,10 +33,11 @@ async function main() {
     throw new Error(`"${shop}" doesn't look like a test store. This script creates fake products and orders. Re-run with --yes-this-is-a-test-store if you're sure.`);
   }
 
-  const loc: any = await gql(`{ locations(first: 1) { nodes { id name } } }`);
+  const loc: any = await gql(`{ shop { currencyCode } locations(first: 1) { nodes { id name } } }`);
   const locationId = loc.locations.nodes[0]?.id;
   if (!locationId) throw new Error("The store has no location to hold stock");
-  console.log(`Location: ${loc.locations.nodes[0].name}`);
+  const currency: string = loc.shop.currencyCode; // orders must use the store's own currency
+  console.log(`Location: ${loc.locations.nodes[0].name}   Currency: ${currency}`);
 
   // ---- products ----
   const variantIds: Record<string, string> = {};
@@ -78,14 +79,15 @@ async function main() {
   }
 
   // ---- backdated orders ----
-  const have: any = await gql(`query { orders(first: 1, query: "tag:popilot-seed") { nodes { id } } }`);
-  if (have.orders.nodes.length) {
-    console.log("Test orders already exist, skipped.");
-  } else {
-    console.log(`Creating ${ORDERS} test orders (Shopify limits how fast dev stores can create orders, so this takes a few minutes)...`);
+  // Fill in only the dates that don't have a seeded order yet, so re-running (or finishing an interrupted run) never duplicates.
+  const have: any = await gql(`query { orders(first: 100, query: "tag:popilot-seed") { nodes { processedAt } } }`);
+  const haveDates = new Set<string>(have.orders.nodes.map((o: any) => String(o.processedAt).slice(0, 10)));
+  {
+    console.log(`Test orders: ${haveDates.size} already exist, creating the missing ones (Shopify limits how fast dev stores can create orders, so this takes a few minutes)...`);
     for (let k = 0; k < ORDERS; k++) {
       const daysAgo = 29 - k * DAYS_PER_ORDER;
       const processedAt = new Date(Date.now() - daysAgo * 86_400_000).toISOString();
+      if (haveDates.has(processedAt.slice(0, 10))) { console.log(`  order ${k + 1}/${ORDERS} (dated ${processedAt.slice(0, 10)}) already exists, skipped`); continue; }
       let done = false;
       for (let attempt = 1; attempt <= 6 && !done; attempt++) {
         const r: any = await gql(
@@ -94,7 +96,7 @@ async function main() {
            }`,
           {
             order: {
-              currency: "INR",
+              currency,
               processedAt,
               tags: ["popilot-seed"],
               test: true,
