@@ -1,10 +1,19 @@
 import { ITEMS, type PO, type RiskResult } from "@/lib/types";
 
-export function PoBoard({ pos, risks }: { pos: PO[]; risks: RiskResult[] }) {
+export interface DateProblem { po_id: string; item: string; value: string }
+
+export function PoBoard({ pos, risks, problems = [] }: { pos: PO[]; risks: RiskResult[]; problems?: DateProblem[] }) {
   return (
     <section className="panel" id="board" tabIndex={-1}>
       <h2>3 · PO board</h2>
       <p className="sub">One PO per product. The slowest open input sets the real ETA.</p>
+      {problems.length > 0 && (
+        <div className="banner warn">
+          These dates in the sheet can't be read, so they're left out of the stock-out check:{" "}
+          {problems.map((p) => `${p.po_id} ${p.item} (${p.value ? `"${p.value}"` : "empty"})`).join(", ")}.
+          Use the format YYYY-MM-DD (for example 2026-11-05), or set the item to "delivered".
+        </div>
+      )}
       <div className="table-wrap">
         <table>
           <thead>

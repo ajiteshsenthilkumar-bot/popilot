@@ -168,6 +168,30 @@ tr.risk td { background: var(--bad-bg); }
   background: var(--ink); color: #fff; font-size: 0.8rem; font-weight: 700;
 }
 
+/* the two-choice box opened by "Try a sample message" */
+.chooser {
+  width: min(520px, calc(100% - 32px)); padding: 24px; border: 0; border-radius: 20px;
+  background: #fff; color: var(--ink); box-shadow: 0 24px 64px rgba(11, 11, 12, 0.28);
+}
+.chooser::backdrop { background: rgba(11, 11, 12, 0.5); }
+.chooser-title { margin: 0 0 16px; font-size: 1.25rem; line-height: 1.3; }
+.chooser-option {
+  display: flex; align-items: flex-start; gap: 14px; margin-top: 12px; padding: 16px;
+  min-height: 64px; border: 2px solid var(--ink); border-radius: 14px; color: var(--ink); text-decoration: none;
+}
+.chooser-option:hover { background: var(--chip-bg); }
+.chooser-option:focus-visible, .chooser-cancel:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+.chooser-num {
+  flex: none; display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%;
+  background: var(--ink); color: #fff; font-size: 0.85rem; font-weight: 700;
+}
+.chooser-option strong { display: block; font-size: 1.05rem; }
+.chooser-desc { display: block; margin-top: 4px; color: var(--ink-soft); font-size: 0.92rem; line-height: 1.4; }
+.chooser-cancel {
+  display: block; margin: 16px auto 0; min-height: 44px; padding: 0 20px; border: 0; background: none;
+  color: var(--ink-soft); font-weight: 600; cursor: pointer; text-decoration: underline;
+}
+
 /* narrow screens: one tidy column, numbers lined up, instead of three centred lines that zig-zag */
 @media (max-width: 600px) {
   .hero-steps { display: grid; justify-content: center; justify-items: start; }

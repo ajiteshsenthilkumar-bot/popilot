@@ -40,6 +40,15 @@ describe("risk", () => {
     expect(assessRisk(po, stock, TODAY).at_risk).toBe(false);
   });
 
+  it("ignores a date typed wrongly in the sheet instead of crashing", () => {
+    const po = makePO();
+    po.inputs.label.eta = "5 Nov"; // not YYYY-MM-DD
+    expect(realEta(po)).toEqual({ eta: "2026-10-25", item: "packaging" });
+    expect(() => assessRisk(po, stock, TODAY)).not.toThrow();
+    po.inputs.manufacturer.eta = ""; po.inputs.packaging.eta = "nonsense";
+    expect(assessRisk(po, stock, TODAY).at_risk).toBe(false); // nothing readable left: no guess
+  });
+
   it("does not crash with no sales or no stock data", () => {
     expect(assessRisk(makePO(), { ...stock, daily_sales: 0 }, TODAY).at_risk).toBe(false);
     expect(assessRisk(makePO(), undefined, TODAY).at_risk).toBe(false);

@@ -64,6 +64,15 @@ describe("sheet bridge layer", () => {
     expect(po.inputs.label.vendor).toBe("Rajesh Labels");
   });
 
+  it("copes with a row typed by hand: stray spaces and 'Delivered' with a capital D", async () => {
+    tabs["POs"] = [[" PO-9 ", "SKU-X ", " Test oil ", "5", " Vendor A ", " 2026-11-01 ", "Open", "Pack B", "", " Delivered ", "Label C", "5 Nov", "delivered"]];
+    const [po] = await sheetGetPOs();
+    expect(po).toMatchObject({ po_id: "PO-9", sku: "SKU-X", product: "Test oil" });
+    expect(po.inputs.manufacturer).toEqual({ vendor: "Vendor A", eta: "2026-11-01", status: "open" });
+    expect(po.inputs.packaging.status).toBe("delivered"); // capital D and trailing space still count
+    expect(po.inputs.label.status).toBe("delivered");
+  });
+
   it("returns false for an unknown PO", async () => {
     await sheetReplacePOs([makePO()]);
     expect(await sheetSetEta("PO-999", "label", "2026-11-02")).toBe(false);

@@ -13,6 +13,7 @@ interface Board {
   risks: RiskResult[];
   stockInfo?: StockInfo;
   missingSkus?: { po_id: string; sku: string }[];
+  dateProblems?: { po_id: string; item: string; value: string }[];
   updates: UpdateRow[];
 }
 
@@ -51,7 +52,7 @@ export default function Home() {
           <ParserPanel updates={board.updates} pos={board.pos} onChange={load} />
           <div className="right">
             <RiskAlerts risks={board.risks} stockInfo={board.stockInfo} missingSkus={board.missingSkus} />
-            <PoBoard pos={board.pos} risks={board.risks} />
+            <PoBoard pos={board.pos} risks={board.risks} problems={board.dateProblems} />
           </div>
         </div>
       )}

@@ -1,5 +1,5 @@
 // Stock-out math. Plain code only: no AI here, and the alert is a fixed template.
-import { diffDays } from "./dates";
+import { diffDays, isValidIso } from "./dates";
 import { ITEMS, type Item, type PO, type RiskResult, type StockRecord } from "./types";
 
 // The slowest open input decides when the PO really finishes.
@@ -7,7 +7,8 @@ export function realEta(po: PO): { eta: string; item: Item } | null {
   let best: { eta: string; item: Item } | null = null;
   for (const item of ITEMS) {
     const input = po.inputs[item];
-    if (input.status !== "open" || !input.eta) continue;
+    // a date typed by hand in the sheet may be wrong ("5 Nov"): ignore it here rather than crash; the screen warns about it
+    if (input.status !== "open" || !input.eta || !isValidIso(input.eta)) continue;
     if (!best || input.eta > best.eta) best = { eta: input.eta, item };
   }
   return best;

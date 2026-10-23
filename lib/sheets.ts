@@ -77,13 +77,14 @@ function rowToPo(r: string[]): PO {
   const inputs = {} as PO["inputs"];
   ITEMS.forEach((item, k) => {
     const base = 4 + k * 3;
+    // the sheet is edited by hand: tolerate stray spaces and capital letters ("Delivered ")
     inputs[item] = {
-      vendor: r[base] ?? "",
-      eta: r[base + 1] ?? "",
-      status: r[base + 2] === "delivered" ? "delivered" : "open",
+      vendor: (r[base] ?? "").trim(),
+      eta: (r[base + 1] ?? "").trim(),
+      status: (r[base + 2] ?? "").trim().toLowerCase() === "delivered" ? "delivered" : "open",
     };
   });
-  return { po_id: r[0], sku: r[1], product: r[2], qty: Number(r[3]) || 0, inputs };
+  return { po_id: (r[0] ?? "").trim(), sku: (r[1] ?? "").trim(), product: (r[2] ?? "").trim(), qty: Number(r[3]) || 0, inputs };
 }
 
 export async function sheetGetPOs(): Promise<PO[]> {

@@ -48,6 +48,17 @@ Use the sample chips in the parser panel.
 
 Automated checks (no API key needed, Claude is faked): `npm test`.
 
+## Adding and removing POs (in the Google Sheet)
+
+The `POs` tab of your Google Sheet **is** the PO list. The app reads it live, so there is nothing to deploy.
+
+- **One row = one PO = one product.** Columns: `po_id, sku, product, qty`, then for each of the three inputs (manufacturer, packaging, label) a `_vendor`, `_eta` and `_status` column.
+- **Add a PO:** add a row at the bottom and fill every column. `sku` must equal the product's SKU in Shopify (that is how stock is found). `_eta` is a date written `YYYY-MM-DD`. `_status` is `open`, or `delivered` when that input has arrived (leave its date empty).
+- **Remove a PO:** delete its row (right-click the row number, Delete row). Or set all three statuses to `delivered` to keep it as a record.
+- **Vendor names are the link to messages.** A vendor's name in the sheet must match the name used for them in `TELEGRAM_ALLOWED` (for example `Rajesh Labels`). One vendor can appear on many POs; if their message doesn't say which product, POPilot asks you to confirm.
+- **Do not run `npm run seed` once you have your own POs.** It replaces the PO list with the four starter POs.
+- Dates that can't be read (like `5 Nov`) are left out of the stock-out check and flagged on the PO board.
+
 ## Shopify (read-only stock and sales)
 
 POPilot reads **stock per SKU** and **units sold in the last 30 days** from Shopify (daily sales = units / 30) and never writes to your store. Without Shopify settings it shows labelled **sample data**; if Shopify is connected but fails, the screen says so instead of quietly using sample numbers.
