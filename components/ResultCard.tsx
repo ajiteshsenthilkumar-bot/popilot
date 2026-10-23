@@ -54,6 +54,22 @@ export function ResultCard({ u, pos, onDone }: { u: UpdateRow; pos: PO[]; onDone
     onDone();
   }
 
+  // Remove a card that changed nothing (or was undone) from the log.
+  async function remove() {
+    if (busy || !window.confirm("Delete this card? It disappears from the log. The PO board is not affected.")) return;
+    setBusy(true);
+    setErr("");
+    const res = await fetch("/api/delete-update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: u.id }),
+    });
+    const data = await res.json();
+    setBusy(false);
+    if (!res.ok) return setErr(data.error ?? "Couldn't delete");
+    onDone();
+  }
+
   return (
     <div className={`card ${u.status === "needs_review" ? "review" : ""}`}>
       <div className="row" style={{ justifyContent: "space-between" }}>
@@ -104,6 +120,16 @@ export function ResultCard({ u, pos, onDone }: { u: UpdateRow; pos: PO[]; onDone
             <input type="date" value={eta} onChange={(e) => setEta(e.target.value)} aria-label="New ETA" />
             <button className="primary" onClick={confirm} disabled={busy || !eta || !poId || !item}>{busy ? "Saving…" : "Confirm"}</button>
           </div>
+          <div style={{ marginTop: 8 }}>
+            <button onClick={remove} disabled={busy}>Delete this card</button>
+          </div>
+          {err && <div className="banner bad" style={{ marginTop: 8 }}>{err}</div>}
+        </div>
+      )}
+
+      {u.status === "reverted" && (
+        <div style={{ marginTop: 8 }}>
+          <button onClick={remove} disabled={busy}>Delete this card</button>
           {err && <div className="banner bad" style={{ marginTop: 8 }}>{err}</div>}
         </div>
       )}

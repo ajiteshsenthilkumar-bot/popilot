@@ -163,6 +163,16 @@ export async function sheetClearUpdates(): Promise<void> {
   await call("replace", { tab: UPDATES_TAB, rows: [] });
 }
 
+// Remove one log row. The bridge has no "delete row", so rewrite the log without it.
+export async function sheetDeleteUpdate(id: string): Promise<boolean> {
+  const { values } = await call("read", { tab: UPDATES_TAB });
+  const rows = values as string[][];
+  const kept = rows.filter((r) => r[0] !== id);
+  if (kept.length === rows.length) return false;
+  await call("replace", { tab: UPDATES_TAB, rows: kept });
+  return true;
+}
+
 export async function sheetSaveUpdate(u: UpdateRow): Promise<boolean> {
   const { found } = await call("replaceRow", { tab: UPDATES_TAB, key: u.id, row: updateToRow(u) });
   return Boolean(found);

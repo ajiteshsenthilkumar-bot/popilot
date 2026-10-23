@@ -1,8 +1,9 @@
-// One door to the data: the Google Sheet.
+// One door to the data: Supabase (or, for older setups, the Google Sheet).
 // An in-memory copy exists ONLY for automated tests (NODE_ENV === "test"), never in the running app.
 import seed from "@/data/seed-pos.json";
 import { addDays, todayIST } from "./dates";
 import * as sheets from "./sheets";
+import * as db from "./supabase";
 import { ITEMS, type Item, type PO, type UpdateRow } from "./types";
 
 export function seedPOs(today: string = todayIST()): PO[] {
@@ -24,23 +25,49 @@ function mem() {
 
 const testMode = () => process.env.NODE_ENV === "test";
 
-// Returns true when we should talk to the real sheet. Throws a plain-English error if it isn't set up.
-function useSheet(): boolean {
-  if (testMode()) return false;
-  if (!sheets.sheetsConfigured()) {
-    throw new Error(
-      "Google Sheets isn't connected yet. Fill in SHEETS_BRIDGE_URL and SHEETS_BRIDGE_TOKEN in .env.local and run `npm run seed` (steps are in the README).",
-    );
-  }
-  return true;
+// Which real database to use: Supabase if its two env vars are set, otherwise the Google Sheet.
+// Returns null in automated tests (they use the in-memory copy). Throws a plain-English error if neither is set up.
+interface Backend {
+  getPOs(): Promise<PO[]>;
+  setPOField(po_id: string, item: Item, field: "vendor" | "eta" | "status", value: string): Promise<boolean>;
+  addPO(po: PO): Promise<void>;
+  replacePOs(pos: PO[]): Promise<void>;
+  appendUpdate(u: UpdateRow): Promise<void>;
+  getUpdates(): Promise<UpdateRow[]>;
+  saveUpdate(u: UpdateRow): Promise<boolean>;
+  deleteUpdate(id: string): Promise<boolean>;
+  getAlertState(): Promise<Record<string, number>>;
+  setAlertState(po_id: string, gap: number): Promise<void>;
+}
+
+const sheetBackend: Backend = {
+  getPOs: sheets.sheetGetPOs, setPOField: sheets.sheetSetPOField, addPO: sheets.sheetAddPO, replacePOs: sheets.sheetReplacePOs,
+  appendUpdate: sheets.sheetAppendUpdate, getUpdates: sheets.sheetGetUpdates, saveUpdate: sheets.sheetSaveUpdate, deleteUpdate: sheets.sheetDeleteUpdate,
+  getAlertState: sheets.sheetGetAlertState, setAlertState: sheets.sheetSetAlertState,
+};
+const supabaseBackend: Backend = {
+  getPOs: db.dbGetPOs, setPOField: db.dbSetPOField, addPO: db.dbAddPO, replacePOs: db.dbReplacePOs,
+  appendUpdate: db.dbAppendUpdate, getUpdates: db.dbGetUpdates, saveUpdate: db.dbSaveUpdate, deleteUpdate: db.dbDeleteUpdate,
+  getAlertState: db.dbGetAlertState, setAlertState: db.dbSetAlertState,
+};
+
+function backend(): Backend | null {
+  if (testMode()) return null;
+  if (db.supabaseConfigured()) return supabaseBackend;
+  if (sheets.sheetsConfigured()) return sheetBackend;
+  throw new Error(
+    "No database is connected yet. Set SUPABASE_URL and SUPABASE_SERVICE_KEY (or the Google Sheet values) in .env.local, then run `npm run seed`.",
+  );
 }
 
 export async function getPOs(): Promise<PO[]> {
-  return useSheet() ? sheets.sheetGetPOs() : structuredClone(mem().pos);
+  const b = backend();
+  return b ? b.getPOs() : structuredClone(mem().pos);
 }
 
 export async function setEta(po_id: string, item: Item, eta: string): Promise<boolean> {
-  if (useSheet()) return sheets.sheetSetEta(po_id, item, eta);
+  const b = backend();
+  if (b) return b.setPOField(po_id, item, "eta", eta);
   const po = mem().pos.find((p) => p.po_id === po_id);
   if (!po) return false;
   po.inputs[item].eta = eta;
@@ -48,47 +75,64 @@ export async function setEta(po_id: string, item: Item, eta: string): Promise<bo
 }
 
 export async function addPO(po: PO): Promise<void> {
-  if (useSheet()) return sheets.sheetAddPO(po);
+  const b = backend();
+  if (b) return b.addPO(po);
   mem().pos.push(structuredClone(po));
 }
 
 export async function replacePOs(pos: PO[]): Promise<void> {
-  if (useSheet()) return sheets.sheetReplacePOs(pos);
+  const b = backend();
+  if (b) return b.replacePOs(pos);
   mem().pos = structuredClone(pos);
 }
 
 // Change one cell of a PO (an item's vendor, eta or status). Throws if the PO row isn't there.
 export async function setPOField(po_id: string, item: Item, field: "vendor" | "eta" | "status", value: string): Promise<void> {
-  if (useSheet()) {
-    if (!(await sheets.sheetSetPOField(po_id, item, field, value))) throw new Error(`${po_id} not found in the sheet`);
+  const b = backend();
+  if (b) {
+    if (!(await b.setPOField(po_id, item, field, value))) throw new Error(`${po_id} not found in the database`);
     return;
   }
   const po = mem().pos.find((p) => p.po_id === po_id);
-  if (!po) throw new Error(`${po_id} not found in the sheet`);
+  if (!po) throw new Error(`${po_id} not found in the database`);
   (po.inputs[item] as any)[field] = value;
 }
 
 export async function appendUpdate(u: UpdateRow): Promise<void> {
-  if (useSheet()) return sheets.sheetAppendUpdate(u);
+  const b = backend();
+  if (b) return b.appendUpdate(u);
   mem().updates.push(structuredClone(u));
 }
 
 export async function getUpdates(): Promise<UpdateRow[]> {
-  return useSheet() ? sheets.sheetGetUpdates() : structuredClone(mem().updates);
+  const b = backend();
+  return b ? b.getUpdates() : structuredClone(mem().updates);
 }
 
 // What the owner has already been told about each PO's stock-out risk (po_id -> gap in days, 0 = no open risk)
 export async function getAlertState(): Promise<Record<string, number>> {
-  return useSheet() ? sheets.sheetGetAlertState() : { ...mem().alerts };
+  const b = backend();
+  return b ? b.getAlertState() : { ...mem().alerts };
 }
 
 export async function setAlertState(po_id: string, gap: number): Promise<void> {
-  if (useSheet()) return sheets.sheetSetAlertState(po_id, gap);
+  const b = backend();
+  if (b) return b.setAlertState(po_id, gap);
   mem().alerts[po_id] = gap;
 }
 
+export async function deleteUpdate(id: string): Promise<boolean> {
+  const b = backend();
+  if (b) return b.deleteUpdate(id);
+  const i = mem().updates.findIndex((x) => x.id === id);
+  if (i === -1) return false;
+  mem().updates.splice(i, 1);
+  return true;
+}
+
 export async function saveUpdate(u: UpdateRow): Promise<boolean> {
-  if (useSheet()) return sheets.sheetSaveUpdate(u);
+  const b = backend();
+  if (b) return b.saveUpdate(u);
   const i = mem().updates.findIndex((x) => x.id === u.id);
   if (i === -1) return false;
   mem().updates[i] = structuredClone(u);

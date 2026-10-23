@@ -7,7 +7,7 @@ vi.mock("@/lib/claude", () => ({ extractProposal: (...a: any[]) => mockExtract(.
 
 import { addDays, todayIST } from "@/lib/dates";
 import { handleInbound } from "@/lib/inbound";
-import { confirmUpdate, processMessage, revertMessageEffects, undoUpdate } from "@/lib/pipeline";
+import { confirmUpdate, deleteLogRow, processMessage, revertMessageEffects, undoUpdate } from "@/lib/pipeline";
 import { getAlertState, getPOs, getUpdates, setEta } from "@/lib/store";
 import { POST as undoRoute } from "@/app/api/undo/route";
 
@@ -140,5 +140,24 @@ describe("Edited messages (the PO 105 case, replayed)", () => {
     await handleInbound([first, { ...first, id: "1151636184_130", text: "labels 3 din" }], ALLOWED);
     const res = await revertMessageEffects("tg_1151636184_13"); // must not touch message 130
     expect(res.reverted.length + res.blocked.length).toBeLessThanOrEqual(1);
+  });
+});
+
+describe("Delete a card", () => {
+  it("deletes a card that changed nothing, and an undone one, but not a change still in effect", async () => {
+    mockExtract.mockResolvedValue(proposal(7, { confidence: 0.2 }));
+    const review = await processMessage({ text: "kuch bhi", source: "text" });
+    await deleteLogRow(review.id);
+    expect((await getUpdates()).some((u) => u.id === review.id)).toBe(false);
+    await expect(deleteLogRow(review.id)).rejects.toThrow(/not found/);
+
+    mockExtract.mockResolvedValue(proposal(7));
+    const row = await processMessage({ text: "labels 7 din", source: "text" });
+    await expect(deleteLogRow(row.id)).rejects.toThrow(/Click Undo first/);
+    expect((await getUpdates()).some((u) => u.id === row.id)).toBe(true);
+    await undoUpdate(row.id);
+    await deleteLogRow(row.id);
+    expect((await getUpdates()).some((u) => u.id === row.id)).toBe(false);
+    expect(await labelEta()).toBe(seedLabelEta()); // deleting a card never touches the board
   });
 });

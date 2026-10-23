@@ -8,7 +8,7 @@ import { evaluate } from "./gate";
 import { assessRisk } from "./risk";
 import { describeEta } from "./sanitize";
 import { findStock, getStockSnapshot } from "./shopify";
-import { appendUpdate, getPOs, getUpdates, saveUpdate, setAlertState, setEta } from "./store";
+import { appendUpdate, deleteUpdate as removeUpdate, getPOs, getUpdates, saveUpdate, setAlertState, setEta } from "./store";
 import { ITEMS, type Item, type PO, type Proposal, type UpdateRow } from "./types";
 
 const newId = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -221,4 +221,15 @@ export async function confirmUpdate(input: {
   await saveUpdate(done);
   await notifyRisk(po, input.item, input.eta);
   return done;
+}
+
+// ---- Delete a card from the log ----
+// Only cards that changed nothing (or were already undone) can be deleted. An applied change must be undone first,
+// so the log never loses the record of a change that is still in effect.
+export async function deleteLogRow(id: string): Promise<void> {
+  const row = (await getUpdates()).find((u) => u.id === id);
+  if (!row) throw new Error("That card was not found (it may already be deleted)");
+  if (row.status === "applied" || row.status === "confirmed") throw new Error("This change is still in effect. Click Undo first, then delete the card.");
+  if (row.status === "pending") throw new Error("This update is still being applied. Try again in a moment.");
+  if (!(await removeUpdate(id))) throw new Error("That card was not found (it may already be deleted)");
 }
