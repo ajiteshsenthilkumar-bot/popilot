@@ -1,9 +1,8 @@
-// One door to the data: Supabase (or, for older setups, the Google Sheet).
+// One door to the data: the Google Sheet.
 // An in-memory copy exists ONLY for automated tests (NODE_ENV === "test"), never in the running app.
 import seed from "@/data/seed-pos.json";
 import { addDays, todayIST } from "./dates";
 import * as sheets from "./sheets";
-import * as db from "./supabase";
 import { ITEMS, type Item, type PO, type UpdateRow } from "./types";
 
 export function seedPOs(today: string = todayIST()): PO[] {
@@ -25,7 +24,7 @@ function mem() {
 
 const testMode = () => process.env.NODE_ENV === "test";
 
-// Which real database to use: Supabase if its two env vars are set, otherwise the Google Sheet.
+// The real database (the Google Sheet).
 // Returns null in automated tests (they use the in-memory copy). Throws a plain-English error if neither is set up.
 interface Backend {
   getPOs(): Promise<PO[]>;
@@ -45,18 +44,12 @@ const sheetBackend: Backend = {
   appendUpdate: sheets.sheetAppendUpdate, getUpdates: sheets.sheetGetUpdates, saveUpdate: sheets.sheetSaveUpdate, deleteUpdate: sheets.sheetDeleteUpdate,
   getAlertState: sheets.sheetGetAlertState, setAlertState: sheets.sheetSetAlertState,
 };
-const supabaseBackend: Backend = {
-  getPOs: db.dbGetPOs, setPOField: db.dbSetPOField, addPO: db.dbAddPO, replacePOs: db.dbReplacePOs,
-  appendUpdate: db.dbAppendUpdate, getUpdates: db.dbGetUpdates, saveUpdate: db.dbSaveUpdate, deleteUpdate: db.dbDeleteUpdate,
-  getAlertState: db.dbGetAlertState, setAlertState: db.dbSetAlertState,
-};
 
 function backend(): Backend | null {
   if (testMode()) return null;
-  if (db.supabaseConfigured()) return supabaseBackend;
   if (sheets.sheetsConfigured()) return sheetBackend;
   throw new Error(
-    "No database is connected yet. Set SUPABASE_URL and SUPABASE_SERVICE_KEY (or the Google Sheet values) in .env.local, then run `npm run seed`.",
+    "Google Sheets isn't connected yet. Fill in SHEETS_BRIDGE_URL and SHEETS_BRIDGE_TOKEN in .env.local and run `npm run seed` (steps are in the README).",
   );
 }
 
