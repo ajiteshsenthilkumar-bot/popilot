@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "POPilot",
-  description: "Forward a vendor delay update, see which PO moved and whether you'll run out of stock.",
+  description: "Forward or connect your vendor's chat. See which PO moved and whether you'll run out of stock.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

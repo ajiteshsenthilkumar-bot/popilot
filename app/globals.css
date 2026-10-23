@@ -86,3 +86,90 @@ tr.risk td { background: var(--bad-bg); }
 .bar > i { display: block; height: 100%; background: var(--ok); }
 .bar.low > i { background: var(--bad); }
 .confirm { margin-top: 8px; padding-top: 8px; border-top: 1px dashed #e8d3a2; }
+
+/* ------------------------------------------------------------------
+   Top of the page ("hero"). Design values are named once here so the
+   hero and any later section reuse them instead of hard-coding colours.
+   ------------------------------------------------------------------ */
+:root {
+  --ink: #0b0b0c;            /* headline, primary button (19:1 on white) */
+  --ink-hover: #26262b;
+  --ink-soft: #4b5563;       /* sub-headline, steps (7.5:1 on white) */
+  --hero-bg: #ffffff;
+  --hero-line: #e3e7ee;
+  --chip-bg: #f6f7f9;
+  --focus: #3b5bdb;          /* focus ring (5.3:1 on white) */
+  --radius-pill: 999px;
+  --fs-hero: clamp(2.25rem, 6.2vw, 4.25rem);
+  --fs-sub: clamp(1.1rem, 2.2vw, 1.4rem);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-behavior: smooth; }
+}
+
+.skip-link {
+  position: absolute; left: 12px; top: -64px; z-index: 10;
+  background: var(--ink); color: #fff; padding: 10px 16px; border-radius: 8px; font-weight: 600;
+}
+.skip-link:focus { top: 12px; }
+
+.hero { background: var(--hero-bg); border-bottom: 1px solid var(--hero-line); }
+.hero-inner {
+  max-width: 960px; margin: 0 auto; text-align: center;
+  padding: clamp(40px, 8vw, 88px) 16px clamp(36px, 6vw, 64px);
+}
+
+.hero-badge {
+  display: inline-flex; align-items: center; gap: 8px; margin: 0 0 clamp(20px, 3vw, 32px);
+  padding: 8px 16px; min-height: 36px; border: 1px solid var(--hero-line); border-radius: var(--radius-pill);
+  background: var(--chip-bg); color: var(--ink-soft); font-size: 0.9rem; font-weight: 500;
+}
+.hero-badge-icon { color: #1f8a4c; flex: none; }
+
+.hero-title {
+  margin: 0 auto; max-width: 21ch; color: var(--ink);
+  font-size: var(--fs-hero); line-height: 1.04; letter-spacing: -0.035em; font-weight: 800; text-wrap: balance;
+}
+.hero-sub {
+  margin: clamp(16px, 2.5vw, 24px) auto 0; max-width: 34ch; color: var(--ink-soft);
+  font-size: var(--fs-sub); line-height: 1.45; text-wrap: balance;
+}
+
+.hero-actions {
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 12px;
+  margin-top: clamp(24px, 4vw, 40px);
+}
+.btn-hero {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 52px; padding: 0 28px; border-radius: var(--radius-pill);
+  font-size: 1.05rem; font-weight: 600; text-decoration: none; cursor: pointer;
+  border: 2px solid var(--ink); transition: background-color 0.15s ease, color 0.15s ease;
+}
+.btn-hero-primary { background: var(--ink); color: #fff; }
+.btn-hero-primary:hover { background: var(--ink-hover); border-color: var(--ink-hover); }
+.btn-hero-secondary { background: #fff; color: var(--ink); }
+.btn-hero-secondary:hover { background: var(--chip-bg); }
+.btn-hero:focus-visible, .skip-link:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+
+.hero-note { margin: 16px 0 0; color: var(--ink-soft); font-size: 0.95rem; }
+
+.hero-steps {
+  list-style: none; margin: clamp(28px, 4vw, 44px) 0 0; padding: 0;
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 12px 28px;
+  color: var(--ink-soft); font-size: 0.95rem;
+}
+.hero-steps li { display: inline-flex; align-items: center; gap: 10px; }
+.hero-step-num {
+  display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%;
+  background: var(--ink); color: #fff; font-size: 0.8rem; font-weight: 700;
+}
+
+/* narrow screens: one tidy column, numbers lined up, instead of three centred lines that zig-zag */
+@media (max-width: 600px) {
+  .hero-steps { display: grid; justify-content: center; justify-items: start; }
+}
+
+/* where the buttons jump to: leave a little air above, and mark the target clearly */
+#parser, #board { scroll-margin-top: 16px; }
+#parser:focus-visible, #board:focus-visible { outline: 3px solid var(--focus); outline-offset: 4px; }

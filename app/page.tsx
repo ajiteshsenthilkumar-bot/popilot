@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { Hero } from "@/components/Hero";
 import { ParserPanel } from "@/components/ParserPanel";
 import { PoBoard } from "@/components/PoBoard";
 import { RiskAlerts, type StockInfo } from "@/components/RiskAlerts";
@@ -40,12 +41,9 @@ export default function Home() {
   }, [load]);
 
   return (
-    <main className="wrap">
-      <div className="top">
-        <h1>POPilot</h1>
-        <p>Forward a vendor delay. See which PO moved and whether you'll run out of stock.</p>
-      </div>
-
+    <main>
+      <Hero />
+      <div className="wrap">
       {err && <div className="banner bad">{err}</div>}
 
       {board && (
@@ -58,6 +56,7 @@ export default function Home() {
         </div>
       )}
       {!board && !err && <p>Loading…</p>}
+      </div>
     </main>
   );
 }

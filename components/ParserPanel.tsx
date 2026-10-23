@@ -61,7 +61,7 @@ export function ParserPanel({ updates, pos, onChange }: { updates: UpdateRow[]; 
   }
 
   return (
-    <section className="panel">
+    <section className="panel" id="parser" tabIndex={-1}>
       <h2>1 · Update parser</h2>
       <p className="sub">Paste a vendor's WhatsApp message or a voice-note transcript, or upload an exported chat.</p>
 
